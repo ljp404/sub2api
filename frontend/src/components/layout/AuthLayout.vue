@@ -61,10 +61,6 @@
       </section>
 
       <section class="auth-form-panel" :aria-label="t('auth.presentation.account')">
-        <div class="auth-form-topline">
-          <span class="auth-form-mark"><Icon name="lock" size="md" aria-hidden="true" /></span>
-          <span>{{ t('auth.presentation.account') }}</span>
-        </div>
         <div class="auth-form-content"><slot /></div>
         <div v-if="$slots.footer" class="auth-form-footer"><slot name="footer" /></div>
       </section>
@@ -72,7 +68,6 @@
 
     <footer class="auth-page-footer">
       <span>&copy; {{ currentYear }} {{ siteName }}. All rights reserved.</span>
-      <span class="auth-footer-note">BUILT FOR YOUR NEXT IDEA</span>
     </footer>
   </div>
 </template>

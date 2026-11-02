@@ -30,6 +30,14 @@ root with its existing styling and API pricing behavior.
 `auth-layout.css` provide the shared login, registration and recovery shell.
 Desktop uses an unframed model-network presentation alongside the account form.
 Mobile hides the diagram and keeps the form in a single scrollable column.
+Desktop windows below 950px height use tighter page spacing. Below 820px,
+form controls and field spacing also become more compact so the standard
+registration form and footer fit in common laptop viewports. Longer optional
+forms keep natural scrolling instead of clipping controls.
+The footer contains only centered copyright text; omit the decorative English
+slogan.
+Account forms start directly with their page heading; omit the lock icon and
+account-center caption above the heading.
 Model brand icons reuse the existing `ModelIcon` component. The network is an
 illustration of the gateway concept, not live availability or usage data.
 
