@@ -218,7 +218,23 @@ export default {
 
   // Auth
   auth: {
+    presentation: {
+      home: 'Back to home',
+      platform: 'AI models, one platform',
+      tagline: 'Connect to leading models. Focus on your next creation.',
+      network: 'Models connected through a unified application gateway',
+      gateway: 'Unified model gateway',
+      chat: 'Conversation',
+      image: 'Image creation',
+      code: 'Development',
+      access: 'Unified API access',
+      usage: 'Usage & billing',
+      models: 'Multiple models',
+      account: 'Account center'
+    },
     welcomeBack: 'Welcome Back',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
     signInToAccount: 'Sign in to your account to continue',
     signIn: 'Sign In',
     signingIn: 'Signing in...',

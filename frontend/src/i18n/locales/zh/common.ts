@@ -218,7 +218,23 @@ export default {
 
   // Auth
   auth: {
+    presentation: {
+      home: '返回首页',
+      platform: '一站式 AI 模型服务',
+      tagline: '连接前沿模型，专注你的下一次创造。',
+      network: '模型通过统一网关接入应用',
+      gateway: '统一模型网关',
+      chat: '智能对话',
+      image: '图像创作',
+      code: '代码开发',
+      access: '统一 API 接入',
+      usage: '用量与账单',
+      models: '多模型管理',
+      account: '账户中心'
+    },
     welcomeBack: '欢迎回来',
+    showPassword: '显示密码',
+    hidePassword: '隐藏密码',
     signInToAccount: '登录您的账户以继续',
     signIn: '登录',
     signingIn: '登录中...',

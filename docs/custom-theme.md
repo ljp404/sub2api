@@ -2,7 +2,7 @@
 
 The custom theme follows the rendered homepage at
 `https://oapi.yundata.ai/home`, inspected on 2026-11-02.
-It preserves existing authentication, navigation and page layouts.
+It preserves existing authentication and navigation behavior.
 
 ## Palette
 
@@ -23,6 +23,25 @@ unknown-platform fallback accent also follow this palette.
 Success, warning, error, payment/provider branding and categorical chart colors
 retain their meaning. The approved model plaza remains isolated in its shadow
 root with its existing styling and API pricing behavior.
+
+## Authentication Presentation
+
+`frontend/src/components/layout/AuthLayout.vue` and its scoped
+`auth-layout.css` provide the shared login, registration and recovery shell.
+Desktop uses an unframed model-network presentation alongside the account form.
+Mobile hides the diagram and keeps the form in a single scrollable column.
+Model brand icons reuse the existing `ModelIcon` component. The network is an
+illustration of the gateway concept, not live availability or usage data.
+
+Site name and logo still use public settings. Presentation copy lives in the
+English and Chinese `auth.presentation` locale entries. The old technical site
+subtitle is not displayed in this shell. Keep other branding settings intact.
+Password visibility on login has translated accessible labels.
+
+Preserve OAuth, captcha, agreements, registration switches and authentication
+handlers when updating the presentation. Avoid adding fixed form heights; some
+deployments have long registration forms or multiple authentication providers.
+Dark mode and reduced-motion preferences are supported.
 
 ## Validation and Upgrades
 
