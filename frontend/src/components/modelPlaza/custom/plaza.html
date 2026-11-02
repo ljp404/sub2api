@@ -1,0 +1,156 @@
+<div id="backdrop" class="backdrop"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar" aria-label="模型筛选">
+    <div class="side-head">
+      <h2>筛选</h2>
+      <button class="reset" id="reset">重置</button
+      ><button
+        class="icon-button quiet close-sidebar"
+        data-action="close-filters"
+        aria-label="关闭筛选"
+      >
+        <img data-icon="x" alt="" />
+      </button>
+    </div>
+    <section class="filter-section">
+      <h3 class="filter-title">模型供应商</h3>
+      <div class="chips" id="providers"></div>
+    </section>
+    <section class="filter-section billing">
+      <h3 class="filter-title">计费类型</h3>
+      <div class="chips" id="billing"></div>
+    </section>
+    <section class="filter-section tags">
+      <h3 class="filter-title">标签</h3>
+      <div class="chips" id="tags"></div>
+    </section>
+    <section class="filter-section">
+      <h3 class="filter-title">
+        可用分组 <span class="count" id="group-count"></span>
+      </h3>
+      <div class="chips groups" id="groups"></div>
+    </section>
+    <div class="source-note">
+      <div><span class="status-dot"></span><strong>模型广场</strong></div>
+      <div id="sync-status">正在同步价格</div>
+      <div>价格币种 USD</div>
+    </div>
+  </aside>
+  <main>
+    <header class="top-panel">
+      <div class="banner">
+        <div>
+          <h1 id="page-title">全部供应商</h1>
+          <span class="total" id="model-total">正在加载</span>
+          <p>发现可用模型，比较平台价格与参考价格。</p>
+        </div>
+        <div class="banner-label">MODEL PLAZA<strong>模型广场</strong></div>
+      </div>
+      <div class="toolbar">
+        <button
+          class="icon-button mobile-filter"
+          data-action="open-filters"
+          aria-label="打开筛选"
+          title="筛选"
+        >
+          <img data-icon="sliders-horizontal" alt="" />
+        </button>
+        <div class="search">
+          <img data-icon="search" alt="" /><input
+            id="search"
+            type="search"
+            placeholder="搜索模型名称"
+            aria-label="搜索模型名称"
+            autocomplete="off"
+          /><button
+            class="icon-button quiet"
+            id="clear-search"
+            aria-label="清空搜索"
+            hidden
+          >
+            <img data-icon="x" alt="" />
+          </button>
+        </div>
+        <button class="copy-all" id="copy-selected" disabled>
+          <img data-icon="copy" alt="" /><span>复制</span>
+        </button>
+        <label class="switch-label"
+          >参考价显示<input
+            id="compare"
+            type="checkbox"
+            role="switch"
+            checked
+            aria-label="参考价显示"
+        /></label>
+        <div class="view-buttons" role="group" aria-label="显示方式">
+          <button
+            class="icon-button active"
+            id="grid-view"
+            aria-label="卡片视图"
+            title="卡片视图"
+            aria-pressed="true"
+          >
+            <img data-icon="layout-grid" alt="" /></button
+          ><button
+            class="icon-button"
+            id="table-view"
+            aria-label="表格视图"
+            title="表格视图"
+            aria-pressed="false"
+          >
+            <img data-icon="table-2" alt="" />
+          </button>
+        </div>
+        <select id="unit" aria-label="价格单位">
+          <option value="1000000">USD / 1M</option>
+          <option value="1000">USD / 1K</option>
+        </select>
+        <select id="sort" aria-label="排序">
+          <option value="default">默认排序</option>
+          <option value="price-asc">输入价格从低到高</option>
+          <option value="price-desc">输入价格从高到低</option>
+          <option value="name">名称 A → Z</option>
+        </select>
+      </div>
+    </header>
+    <div id="description" class="plaza-description" hidden></div>
+    <p id="anonymous-hint" class="anonymous-hint" hidden>
+      当前为公开价格，登录后可查看专属分组与个人倍率。
+    </p>
+    <div class="result-bar">
+      <span id="result-count" aria-live="polite">正在获取模型…</span
+      ><label class="select-all"
+        ><input type="checkbox" id="select-all" />全选当前结果</label
+      >
+    </div>
+    <div id="results" class="grid" aria-busy="true"></div>
+    <footer class="page-foot">
+      <span id="updated"></span
+      ><button
+        class="icon-button quiet"
+        id="refresh"
+        aria-label="刷新价格"
+        title="刷新价格"
+      >
+        <img data-icon="refresh-cw" alt="" />
+      </button>
+    </footer>
+  </main>
+</div>
+<dialog id="details" aria-labelledby="detail-title">
+  <div class="dialog-head">
+    <div>
+      <h2 id="detail-title"></h2>
+      <small id="detail-subtitle"></small>
+    </div>
+    <button
+      class="icon-button quiet"
+      data-action="close-detail"
+      aria-label="关闭详情"
+    >
+      <img data-icon="x" alt="" />
+    </button>
+  </div>
+  <div class="dialog-body" id="detail-body"></div>
+</dialog>
+<div id="toast" class="toast" role="status" hidden></div>
