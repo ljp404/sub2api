@@ -19,6 +19,10 @@ focus states and navigation use it through `frontend/src/style.css`.
 colored blobs. Auth brand names and logos continue to come from public settings.
 The onboarding buttons, key-usage focus border, settings tab indicator and
 unknown-platform fallback accent also follow this palette.
+The shared application sidebar shows only the configured logo and site name;
+omit the version badge below the name. Keep version data and update logic intact.
+The user dropdown omits the upstream GitHub link and replay-onboarding entry;
+preserve profile, API keys, configured support details and logout.
 
 Success, warning, error, payment/provider branding and categorical chart colors
 retain their meaning. The approved model plaza remains isolated in its shadow
