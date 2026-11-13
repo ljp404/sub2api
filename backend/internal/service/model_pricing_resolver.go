@@ -92,7 +92,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 			if mode == "" {
 				mode = BillingModeToken
 			}
-			if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
+			if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo || mode == BillingModeParameter || mode == BillingModeVideoToken {
 				resolved := &ResolvedPricing{
 					Mode:           mode,
 					Source:         PricingSourceChannel,
@@ -134,7 +134,10 @@ func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPric
 		mode = BillingModeToken
 	}
 	resolved := &ResolvedPricing{Mode: mode, Source: source, channelPricing: config}
-	if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
+	if mode == BillingModeVideoToken {
+		return resolved
+	}
+	if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo || mode == BillingModeParameter {
 		r.applyRequestTierOverrides(config, resolved)
 		return resolved
 	}
@@ -219,7 +222,7 @@ func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupI
 	switch resolved.Mode {
 	case BillingModeToken:
 		r.applyTokenOverrides(chPricing, resolved)
-	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
+	case BillingModePerRequest, BillingModeImage, BillingModeVideo, BillingModeParameter, BillingModeVideoToken:
 		r.applyRequestTierOverrides(chPricing, resolved)
 	}
 }

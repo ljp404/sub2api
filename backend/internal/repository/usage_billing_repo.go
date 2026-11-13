@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -51,8 +52,49 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 	}
 
 	result := &service.UsageBillingApplyResult{Applied: true}
+	if cmd.ParameterPricing != nil && cmd.ParameterPricing.HoldID != "" {
+		if err := captureImageParameterBalance(ctx, tx, cmd, result); err != nil {
+			return nil, err
+		}
+	}
+	if cmd.VideoTokenPricing != nil {
+		if err := captureVideoTokenJob(ctx, tx, cmd, result); err != nil {
+			return nil, err
+		}
+		snapshot, err := json.Marshal(cmd.VideoTokenPricing)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO video_token_billing_snapshots (request_id,api_key_id,snapshot) VALUES ($1,$2,$3)`,
+			cmd.RequestID, cmd.APIKeyID, string(snapshot)); err != nil {
+			return nil, err
+		}
+	}
+	if cmd.VideoTaskPricing != nil {
+		if err := captureVideoTaskJob(ctx, tx, cmd, result); err != nil {
+			return nil, err
+		}
+		snapshot, err := json.Marshal(cmd.VideoTaskPricing)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO video_task_billing_snapshots (request_id,api_key_id,snapshot) VALUES ($1,$2,$3)`,
+			cmd.RequestID, cmd.APIKeyID, string(snapshot)); err != nil {
+			return nil, err
+		}
+	}
 	if err := r.applyUsageBillingEffects(ctx, tx, cmd, result); err != nil {
 		return nil, err
+	}
+	if cmd.ParameterPricing != nil {
+		snapshot, marshalErr := json.Marshal(cmd.ParameterPricing)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO parameter_billing_snapshots (request_id, api_key_id, snapshot) VALUES ($1, $2, $3)`,
+			cmd.RequestID, cmd.APIKeyID, string(snapshot)); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -178,7 +220,7 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		}
 	}
 
-	if cmd.BalanceCost > 0 {
+	if cmd.BalanceCost > 0 && cmd.VideoTokenPricing == nil && cmd.VideoTaskPricing == nil && (cmd.ParameterPricing == nil || cmd.ParameterPricing.HoldID == "") {
 		newBalance, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
 		if err != nil {
 			return err

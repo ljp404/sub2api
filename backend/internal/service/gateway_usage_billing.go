@@ -298,6 +298,9 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		AccountID:          p.Account.ID,
 		AccountType:        p.Account.Type,
 		RequestPayloadHash: strings.TrimSpace(p.RequestPayloadHash),
+		ParameterPricing:   p.Cost.ParameterPricing,
+		VideoTokenPricing:  p.Cost.VideoTokenPricing,
+		VideoTaskPricing:   p.Cost.VideoTaskPricing,
 	}
 	if usageLog != nil {
 		cmd.Model = usageLog.Model
@@ -360,6 +363,9 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
 	if cmd == nil || cmd.RequestID == "" || repo == nil {
+		if p.Cost != nil && p.Cost.ParameterPricing != nil && p.Cost.ParameterPricing.HoldID != "" {
+			return false, ErrBillingServiceUnavailable
+		}
 		if p.SimpleModeKeyRateLimitOnly {
 			return false, ErrSimpleModeKeyRateLimitBillingUnavailable
 		}
@@ -372,6 +378,15 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	billingCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 
+	if cmd.ParameterPricing != nil && cmd.ParameterPricing.HoldID != "" {
+		imageRepo, ok := repo.(ImageParameterBillingRepository)
+		if !ok {
+			return false, ErrBillingServiceUnavailable
+		}
+		if err := imageRepo.StageImageParameterSettlement(billingCtx, &ImageParameterSettlement{Command: cmd, Usage: usageLog}); err != nil {
+			return false, err
+		}
+	}
 	result, err := repo.Apply(billingCtx, cmd)
 	if err != nil {
 		return false, err
@@ -415,7 +430,9 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
 			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
 		}
-	} else if p.Cost.ActualCost > 0 && p.User != nil {
+	} else if p.User != nil && (p.Cost.ActualCost > 0 || p.Cost.VideoTokenPricing != nil ||
+		(p.Cost.VideoTaskPricing != nil && p.Cost.VideoTaskPricing.HoldID != "") ||
+		(p.Cost.ParameterPricing != nil && p.Cost.ParameterPricing.HoldID != "")) {
 		syncBalanceCacheAfterDeduction(ctx, p, deps, result)
 	}
 
@@ -467,6 +484,14 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 
 func syncBalanceCacheAfterDeduction(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
 	if p == nil || p.Cost == nil || p.User == nil || deps == nil || deps.billingCacheService == nil {
+		return
+	}
+	if p.Cost.VideoTokenPricing != nil ||
+		(p.Cost.VideoTaskPricing != nil && p.Cost.VideoTaskPricing.HoldID != "") ||
+		(p.Cost.ParameterPricing != nil && p.Cost.ParameterPricing.HoldID != "") {
+		// The full price was already reserved. Invalidate instead of queueing
+		// the full cost as another cached balance deduction.
+		_ = deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID)
 		return
 	}
 	if result != nil && result.NewBalance != nil && deps.billingCacheService.balanceBelowEligibilityThreshold(*result.NewBalance) {
@@ -1170,6 +1195,18 @@ func (s *GatewayService) calculateImageCost(
 	billingModel string,
 	multiplier float64,
 ) *CostBreakdown {
+	if result != nil && result.ParameterQuote != nil {
+		snapshot, err := CalculateParameterPricing(result.ParameterQuote.Rule, ParameterPricingInput{
+			Dimensions: result.ParameterQuote.Input.Dimensions,
+			Quantity:   result.ImageCount,
+			Multiplier: result.ParameterQuote.Input.Multiplier,
+		})
+		if err != nil {
+			logger.LegacyPrintf("service.gateway", "Calculate image parameter cost failed: %v", err)
+			return &CostBreakdown{ActualCost: 0}
+		}
+		return parameterPricingCost(snapshot)
+	}
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	forcePerImage := imageCountBillingApplies(apiKey, result.ImageEndpoint)
 	resolved := s.resolveChannelPricing(ctx, billingModel, apiKey)

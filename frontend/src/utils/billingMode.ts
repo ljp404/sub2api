@@ -5,6 +5,8 @@ export const BILLING_MODE_VIDEO = 'video'
 
 export function getBillingModeLabel(mode: string | null | undefined, t: (key: string) => string): string {
   switch (mode) {
+    case 'video_token': return t('admin.channels.billingMode.videoToken')
+    case 'parameter': return t('admin.channels.billingMode.parameter')
     case BILLING_MODE_PER_REQUEST: return t('admin.usage.billingModePerRequest')
     case BILLING_MODE_IMAGE: return t('admin.usage.billingModeImage')
     case BILLING_MODE_VIDEO: return t('admin.usage.billingModeVideo')
@@ -14,6 +16,8 @@ export function getBillingModeLabel(mode: string | null | undefined, t: (key: st
 
 export function getBillingModeBadgeClass(mode: string | null | undefined): string {
   switch (mode) {
+    case 'video_token': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    case 'parameter': return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
     case BILLING_MODE_PER_REQUEST: return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
     case BILLING_MODE_IMAGE: return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
     case BILLING_MODE_VIDEO: return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
@@ -28,12 +32,12 @@ interface ImageBillingRow {
 }
 
 export function isImageUsage(row: Pick<ImageBillingRow, 'image_count' | 'billing_mode'> | null | undefined): boolean {
-  return (row?.image_count ?? 0) > 0 && row?.billing_mode !== BILLING_MODE_TOKEN && row?.billing_mode !== BILLING_MODE_VIDEO
+  return (row?.image_count ?? 0) > 0 && row?.billing_mode !== BILLING_MODE_TOKEN && row?.billing_mode !== BILLING_MODE_VIDEO && row?.billing_mode !== 'video_token'
 }
 
 export function getDisplayBillingMode(row: Pick<ImageBillingRow, 'billing_mode' | 'image_count'> | null | undefined): string | null | undefined {
   // Explicit video/token modes always win over image_count heuristics.
-  if (row?.billing_mode === BILLING_MODE_VIDEO || row?.billing_mode === BILLING_MODE_TOKEN) {
+  if (row?.billing_mode === BILLING_MODE_VIDEO || row?.billing_mode === BILLING_MODE_TOKEN || row?.billing_mode === 'video_token') {
     return row.billing_mode
   }
   if ((row?.image_count ?? 0) > 0 && !row?.billing_mode) {

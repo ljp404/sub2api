@@ -1505,7 +1505,7 @@
             <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
-            <PricingEntryCard v-for="(entry, index) in createForm.model_pricing" :key="index" :entry="entry" :platform="createForm.platform" hide-token-intervals @update="createForm.model_pricing[index] = $event" @remove="createForm.model_pricing.splice(index, 1)" />
+            <PricingEntryCard v-for="(entry, index) in createForm.model_pricing" :key="index" :entry="entry" :platform="createForm.platform" :enable-parameter-pricing="supportsLivePlatform(createForm.platform)" hide-token-intervals @update="createForm.model_pricing[index] = $event" @remove="createForm.model_pricing.splice(index, 1)" />
           </div>
         </div>
 
@@ -3169,7 +3169,7 @@
             <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
-            <PricingEntryCard v-for="(entry, index) in editForm.model_pricing" :key="index" :entry="entry" :platform="editForm.platform" hide-token-intervals @update="editForm.model_pricing[index] = $event" @remove="editForm.model_pricing.splice(index, 1)" />
+            <PricingEntryCard v-for="(entry, index) in editForm.model_pricing" :key="index" :entry="entry" :platform="editForm.platform" :enable-parameter-pricing="supportsLivePlatform(editForm.platform)" hide-token-intervals @update="editForm.model_pricing[index] = $event" @remove="editForm.model_pricing.splice(index, 1)" />
           </div>
         </div>
 
@@ -4413,6 +4413,9 @@ const supportsLivePlatform = (platform: string): boolean =>
   platform === "openai" || platform === "composite";
 
 const emptyGroupPricing = (): PricingFormEntry => ({
+  parameter_pricing: null,
+  video_token_pricing: null,
+  video_task_pricing: null,
   models: [],
   billing_mode: "token",
   input_price: null,
@@ -4435,6 +4438,10 @@ const groupPricingFromAPI = (
   pricing: ChannelModelPricing[] | undefined,
 ): PricingFormEntry[] =>
   (pricing || []).map((entry) => ({
+    platform: entry.platform,
+    parameter_pricing: entry.parameter_pricing ? JSON.parse(JSON.stringify(entry.parameter_pricing)) : null,
+    video_token_pricing: entry.video_token_pricing ? JSON.parse(JSON.stringify(entry.video_token_pricing)) : null,
+    video_task_pricing: entry.video_task_pricing ? JSON.parse(JSON.stringify(entry.video_task_pricing)) : null,
     models: entry.models || [],
     billing_mode: entry.billing_mode || "token",
     input_price: perTokenToMTok(entry.input_price),
@@ -4459,7 +4466,16 @@ const groupPricingToAPI = (
   pricing
     .filter((entry) => entry.models.length > 0)
     .map((entry) => ({
-      platform,
+      parameter_pricing:
+        entry.billing_mode === "parameter" ? (entry.parameter_pricing || null) : null,
+      video_token_pricing:
+        entry.billing_mode === "video_token" ? (entry.video_token_pricing || null) : null,
+      video_task_pricing:
+        entry.billing_mode === "video" ? (entry.video_task_pricing || null) : null,
+      platform: platform === "composite"
+        ? (entry.billing_mode === "parameter" || entry.billing_mode === "video_token"
+          ? "openai" : entry.platform || platform)
+        : platform,
       models: entry.models,
       billing_mode: entry.billing_mode,
       input_price: mTokToPerToken(entry.input_price),

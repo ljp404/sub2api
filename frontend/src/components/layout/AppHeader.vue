@@ -50,6 +50,20 @@
           <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
         </router-link>
 
+        <!-- AI Experience -->
+        <a
+          v-if="user && aiExperienceUrl"
+          :href="aiExperienceUrl"
+          :title="t('nav.aiExperience')"
+          :aria-label="t('nav.aiExperience')"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
+        >
+          <Icon name="sparkles" size="sm" />
+          <span class="hidden sm:inline">{{ t('nav.aiExperience') }}</span>
+        </a>
+
         <!-- Language Switcher -->
         <LocaleSwitcher />
 
@@ -249,6 +263,9 @@ const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
+const aiExperienceUrl = computed(() =>
+  sanitizeUrl(appStore.cachedPublicSettings?.drill_factory_url || ''),
+)
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const availableBalance = computed(() => Number(user.value?.balance || 0))

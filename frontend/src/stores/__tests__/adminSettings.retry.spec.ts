@@ -8,7 +8,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   setActivePinia(createPinia())
-  mocks.getSettings.mockResolvedValue({ ops_monitoring_enabled: true, custom_menu_items: [{ id: 'custom', title: 'Custom' }] })
+  mocks.getSettings.mockResolvedValue({
+    ops_monitoring_enabled: true,
+    custom_menu_items: [{ id: 'custom', title: 'Custom' }],
+    channel_gateway_url: 'https://gateway.example.com',
+  })
   mocks.getConfig.mockResolvedValue({ data: { enabled: true } })
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -28,6 +32,7 @@ describe('admin settings fetch retry', () => {
     expect(store.loaded).toBe(true)
     expect(store.paymentEnabled).toBe(true)
     expect(store.customMenuItems).toEqual([{ id: 'custom', title: 'Custom' }])
+    expect(store.channelGatewayUrl).toBe('https://gateway.example.com')
   })
 
   it('keeps cached values visible when the initial request fails', async () => {

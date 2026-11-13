@@ -32,6 +32,33 @@ func geminiImageResponse(parts string) string {
 	return `{"candidates":[{"content":{"role":"model","parts":[` + parts + `]},"finishReason":"STOP"}]}`
 }
 
+func TestGeminiImagePricingDimensions(t *testing.T) {
+	for _, test := range []struct {
+		name, body string
+		want       map[string]string
+	}{
+		{
+			name: "native camelCase",
+			body: `{"generationConfig":{"imageConfig":{"imageSize":"2K","aspectRatio":"16:9"}}}`,
+			want: map[string]string{"resolution": "2k", "image_size": "2k", "aspect_ratio": "16:9"},
+		},
+		{
+			name: "compatible snake_case",
+			body: `{"generation_config":{"image_config":{"image_size":"1K","aspect_ratio":"1:1"}}}`,
+			want: map[string]string{"resolution": "1k", "image_size": "1k", "aspect_ratio": "1:1"},
+		},
+		{
+			name: "missing image config",
+			body: `{"contents":[{"parts":[{"text":"draw"}]}]}`,
+			want: map[string]string{},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, GeminiImagePricingDimensions([]byte(test.body)))
+		})
+	}
+}
+
 func TestCountGeminiImageOutputs(t *testing.T) {
 	cases := []struct {
 		name    string

@@ -1,18 +1,35 @@
 import { DriveStep } from 'driver.js'
 
+function withSiteName(content: string, siteName: string): string {
+  const safeSiteName = (siteName.trim() || 'Sub2API').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character] ?? character)
+
+  return content.replace(/Sub2API/g, safeSiteName)
+}
+
 /**
  * 管理员完整引导流程
  * 交互式引导：指引用户实际操作
  * @param t 国际化函数
  * @param isSimpleMode 是否为简易模式（简易模式下会过滤分组相关步骤）
+ * @param siteName 系统自定义站点名称
  */
-export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false): DriveStep[] => {
+export const getAdminSteps = (
+  t: (key: string) => string,
+  isSimpleMode = false,
+  siteName = 'Sub2API'
+): DriveStep[] => {
   const allSteps: DriveStep[] = [
   // ========== 欢迎介绍 ==========
   {
     popover: {
-      title: t('onboarding.admin.welcome.title'),
-      description: t('onboarding.admin.welcome.description'),
+      title: withSiteName(t('onboarding.admin.welcome.title'), siteName),
+      description: withSiteName(t('onboarding.admin.welcome.description'), siteName),
       align: 'center',
       nextBtnText: t('onboarding.admin.welcome.nextBtn'),
       prevBtnText: t('onboarding.admin.welcome.prevBtn')
@@ -246,11 +263,11 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
 /**
  * 普通用户引导流程
  */
-export const getUserSteps = (t: (key: string) => string): DriveStep[] => [
+export const getUserSteps = (t: (key: string) => string, siteName = 'Sub2API'): DriveStep[] => [
   {
     popover: {
-      title: t('onboarding.user.welcome.title'),
-      description: t('onboarding.user.welcome.description'),
+      title: withSiteName(t('onboarding.user.welcome.title'), siteName),
+      description: withSiteName(t('onboarding.user.welcome.description'), siteName),
       align: 'center',
       nextBtnText: t('onboarding.user.welcome.nextBtn'),
       prevBtnText: t('onboarding.user.welcome.prevBtn')

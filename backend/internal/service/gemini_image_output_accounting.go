@@ -68,6 +68,34 @@ func observedGeminiImageOutputs(c *gin.Context) int {
 	return counter.count
 }
 
+// GeminiImagePricingDimensions extracts only stable billing inputs from the
+// native Gemini image configuration. Prompt and image payloads are never copied.
+func GeminiImagePricingDimensions(body []byte) map[string]string {
+	dimensions := make(map[string]string)
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return dimensions
+	}
+	config := gjson.GetBytes(body, "generationConfig.imageConfig")
+	if !config.Exists() {
+		config = gjson.GetBytes(body, "generation_config.image_config")
+	}
+	for _, key := range []string{"imageSize", "image_size"} {
+		if value := strings.TrimSpace(config.Get(key).String()); value != "" {
+			value = strings.ToLower(value)
+			dimensions["resolution"] = value
+			dimensions["image_size"] = value
+			break
+		}
+	}
+	for _, key := range []string{"aspectRatio", "aspect_ratio"} {
+		if value := strings.TrimSpace(config.Get(key).String()); value != "" {
+			dimensions["aspect_ratio"] = strings.ToLower(value)
+			break
+		}
+	}
+	return dimensions
+}
+
 // resolveGeminiImageCount 决定本次请求按几张图计费。
 //
 // 优先用上游真正返回的图片数：走 GeminiMessagesCompatService 的账号多是

@@ -164,6 +164,8 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+    drillFactory: 'Drill Factory',
+    channelGateway: 'Channel Gateway',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     batchImage: 'Batch Images',
@@ -180,6 +182,7 @@ export default {
     channels: 'Channels',
     availableChannels: 'Available Channels',
     modelPlaza: 'Model Plaza',
+    aiExperience: 'AI Experience',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     plugins: 'Plugins',
@@ -207,6 +210,7 @@ export default {
     paymentPlans: 'Plans',
     channelManagement: 'Channels',
     channelPricing: 'Channel Pricing',
+    modelPlazaReferencePrices: 'Reference Pricing',
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
@@ -263,6 +267,7 @@ export default {
     passwordMinLength: 'Password must be at least 6 characters',
     loginFailed: 'Login failed. Please check your credentials and try again.',
     errors: {
+      INVALID_VERIFY_CODE: 'Invalid or expired verification code',
       USER_NOT_ACTIVE: 'Account has been disabled.',
     },
     registrationFailed: 'Registration failed. Please try again.',

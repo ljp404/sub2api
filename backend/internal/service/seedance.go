@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -73,6 +74,30 @@ func buildSeedanceURL(base string, endpoint GrokMediaEndpoint, taskID string) (s
 // ForwardSeedance preserves the Ark protocol, including multimodal content and
 // future fields. Only model is rewritten using the account's configured mapping.
 func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint, taskID string, body []byte) (*OpenAIForwardResult, error) {
+	return s.ForwardSeedancePriced(ctx, c, account, endpoint, taskID, body, nil, nil)
+}
+
+func (s *OpenAIGatewayService) ForwardSeedancePriced(ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint, taskID string, body []byte, job *VideoTokenBillingJob, keys *APIKeyService) (*OpenAIForwardResult, error) {
+	sent, bound, rejected := false, false, false
+	if endpoint == SeedanceEndpointCreate && job != nil {
+		defer func() {
+			if bound {
+				return
+			}
+			cleanupCtx, done := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer done()
+			var err error
+			if !sent || rejected {
+				err = s.videoTokenRepo().ReleaseVideoTokenJob(cleanupCtx, job.ID)
+				s.invalidateVideoTokenBalance(cleanupCtx, job.UserID)
+			} else {
+				err = s.videoTokenRepo().MarkVideoTokenJob(cleanupCtx, job.ID, "uncertain", "create outcome unknown; reconcile upstream before releasing funds")
+			}
+			if err != nil {
+				logger.LegacyPrintf("service.video_token", "create hold cleanup failed job=%s: %v", job.ID, err)
+			}
+		}()
+	}
 	if !account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilitySeedance) || !endpoint.IsSeedance() {
 		return nil, fmt.Errorf("seedance requires an OpenAI API key account with a custom base URL")
 	}
@@ -94,9 +119,18 @@ func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Conte
 		}
 		model = info.Model
 		upstreamModel = account.GetMappedModel(model)
+		if job != nil {
+			upstreamModel = job.UpstreamModel
+		}
 		body, err = sjson.SetBytes(body, "model", upstreamModel)
 		if err != nil {
 			return nil, err
+		}
+		if resolution := gjson.GetBytes(body, "resolution"); resolution.Type == gjson.String {
+			body, err = sjson.SetBytes(body, "resolution", strings.ToLower(resolution.String()))
+			if err != nil {
+				return nil, err
+			}
 		}
 		method = http.MethodPost
 	case SeedanceEndpointDelete:
@@ -119,6 +153,7 @@ func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Conte
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxy = account.Proxy.URL()
 	}
+	sent = true
 	resp, err := s.httpUpstream.Do(req, proxy, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(started).Milliseconds())
 	if err != nil {
@@ -132,6 +167,7 @@ func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Conte
 	// Do not retry ambiguous asynchronous creates: the upstream may already have
 	// accepted a billable job. Preserve native error codes and response bodies.
 	if resp.StatusCode >= 300 {
+		rejected = resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusRequestTimeout
 		writeGrokMediaResponse(c, resp, responseBody, s.responseHeaderFilter)
 		return nil, fmt.Errorf("seedance upstream status %d", resp.StatusCode)
 	}
@@ -142,12 +178,32 @@ func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Conte
 			return nil, fmt.Errorf("seedance create response missing task ID")
 		}
 		result.ResponseID = SeedanceTaskKey(id)
+		if job != nil {
+			// Persist the task id before exposing it to the client. Use a detached
+			// context because a disconnected caller must not lose the paid job.
+			persistCtx, done := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer done()
+			if err := s.videoTokenRepo().BindVideoTokenJob(persistCtx, job.ID, result.ResponseID); err != nil {
+				logger.LegacyPrintf("service.video_token", "task binding failed job=%s task=%s: %v", job.ID, result.ResponseID, err)
+				return nil, fmt.Errorf("video billing task binding failed")
+			}
+			bound = true
+			result.VideoTokenManaged = true
+		}
 	}
 	if endpoint == SeedanceEndpointStatus {
 		result.ResponseID = taskID
 		result.UpstreamModel = gjson.GetBytes(responseBody, "model").String()
 		if gjson.GetBytes(responseBody, "status").String() == "succeeded" {
 			result.Usage.OutputTokens = max(0, int(gjson.GetBytes(responseBody, "usage.completion_tokens").Int()))
+		}
+	}
+	if job != nil && endpoint != SeedanceEndpointCreate {
+		result.VideoTokenManaged = true
+		if keys != nil {
+			if err := s.ProcessVideoTokenStatus(ctx, keys, job, responseBody); err != nil {
+				logger.LegacyPrintf("service.video_token", "task settlement pending job=%s: %v", job.ID, err)
+			}
 		}
 	}
 	writeGrokMediaResponse(c, resp, responseBody, s.responseHeaderFilter)

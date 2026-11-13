@@ -450,6 +450,7 @@
                   :platform="section.platform"
                   enable-time-pricing
                   enable-tier-multipliers
+                  enable-parameter-pricing
                   @update="updatePricingEntry(sIdx, idx, $event)"
                   @remove="removePricingEntry(sIdx, idx)"
                 />
@@ -1146,6 +1147,9 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
         platform: section.platform,
         models: entry.models,
         billing_mode: entry.billing_mode,
+        parameter_pricing: entry.billing_mode === 'parameter' ? entry.parameter_pricing : null,
+        video_token_pricing: entry.billing_mode === 'video_token' ? entry.video_token_pricing : null,
+        video_task_pricing: entry.billing_mode === 'video' ? entry.video_task_pricing : null,
         input_price: mTokToPerToken(entry.input_price),
         output_price: mTokToPerToken(entry.output_price),
         cache_write_price: mTokToPerToken(entry.cache_write_price),
@@ -1247,6 +1251,9 @@ function apiToForm(channel: Channel): PlatformSection[] {
       .map(p => ({
         models: p.models || [],
         billing_mode: p.billing_mode,
+        parameter_pricing: p.parameter_pricing ? JSON.parse(JSON.stringify(p.parameter_pricing)) : null,
+        video_token_pricing: p.video_token_pricing ? JSON.parse(JSON.stringify(p.video_token_pricing)) : null,
+        video_task_pricing: p.video_task_pricing ? JSON.parse(JSON.stringify(p.video_task_pricing)) : null,
         input_price: perTokenToMTok(p.input_price),
         output_price: perTokenToMTok(p.output_price),
         cache_write_price: perTokenToMTok(p.cache_write_price),

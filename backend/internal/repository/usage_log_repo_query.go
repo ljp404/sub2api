@@ -48,6 +48,81 @@ func (r *usageLogRepository) GetByID(ctx context.Context, id int64) (log *servic
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+	if log.BillingMode != nil && *log.BillingMode == string(service.BillingModeVideoToken) {
+		if err = rows.Close(); err != nil {
+			return nil, err
+		}
+		var data []byte
+		auditRows, queryErr := r.sql.QueryContext(ctx, `SELECT snapshot FROM video_token_billing_snapshots WHERE request_id=$1 AND api_key_id=$2`,
+			log.RequestID, log.APIKeyID)
+		if queryErr != nil {
+			return nil, queryErr
+		}
+		defer auditRows.Close()
+		if auditRows.Next() {
+			if err = auditRows.Scan(&data); err != nil {
+				return nil, err
+			}
+		}
+		if err = auditRows.Err(); err != nil {
+			return nil, err
+		}
+		if len(data) > 0 {
+			if err = json.Unmarshal(data, &log.VideoTokenPricing); err != nil {
+				return nil, err
+			}
+		}
+		err = nil
+	}
+	if log.BillingMode != nil && *log.BillingMode == string(service.BillingModeParameter) {
+		if err = rows.Close(); err != nil {
+			return nil, err
+		}
+		var data []byte
+		auditRows, queryErr := r.sql.QueryContext(ctx, `SELECT snapshot FROM parameter_billing_snapshots WHERE request_id = $1 AND api_key_id = $2`,
+			log.RequestID, log.APIKeyID)
+		if queryErr != nil {
+			return nil, queryErr
+		}
+		defer auditRows.Close()
+		if auditRows.Next() {
+			if err = auditRows.Scan(&data); err != nil {
+				return nil, err
+			}
+			if err = json.Unmarshal(data, &log.ParameterPricing); err != nil {
+				return nil, err
+			}
+		}
+		if err = auditRows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	if log.BillingMode != nil && *log.BillingMode == string(service.BillingModeVideo) {
+		if err = rows.Close(); err != nil {
+			return nil, err
+		}
+		var data []byte
+		auditRows, queryErr := r.sql.QueryContext(ctx, `SELECT snapshot FROM video_task_billing_snapshots WHERE request_id=$1 AND api_key_id=$2`,
+			log.RequestID, log.APIKeyID)
+		if queryErr != nil {
+			return nil, queryErr
+		}
+		defer auditRows.Close()
+		if auditRows.Next() {
+			if err = auditRows.Scan(&data); err != nil {
+				return nil, err
+			}
+		}
+		if err = auditRows.Err(); err != nil {
+			return nil, err
+		}
+		if len(data) > 0 {
+			if err = json.Unmarshal(data, &log.VideoTaskPricing); err != nil {
+				return nil, err
+			}
+		}
+		err = nil
+	}
 	return log, nil
 }
 

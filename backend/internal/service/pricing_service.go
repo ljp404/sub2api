@@ -1794,6 +1794,38 @@ func (s *PricingService) ListModelNamesByProvider(provider string) []string {
 	return names
 }
 
+// ListPricingCatalog returns a stable snapshot of the loaded model pricing
+// catalog for administrative reference-price imports.
+func (s *PricingService) ListPricingCatalog() []PricingCatalogEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entries := make([]PricingCatalogEntry, 0, len(s.pricingData))
+	for name, pricing := range s.pricingData {
+		if pricing == nil || strings.TrimSpace(pricing.LiteLLMProvider) == "" {
+			continue
+		}
+		entries = append(entries, PricingCatalogEntry{
+			ModelName: name,
+			Provider:  pricing.LiteLLMProvider,
+			Pricing:   *pricing,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Provider != entries[j].Provider {
+			return entries[i].Provider < entries[j].Provider
+		}
+		return entries[i].ModelName < entries[j].ModelName
+	})
+	return entries
+}
+
+type PricingCatalogEntry struct {
+	ModelName string
+	Provider  string
+	Pricing   LiteLLMModelPricing
+}
+
 // isNumeric 检查字符串是否为纯数字
 func isNumeric(s string) bool {
 	for _, c := range s {

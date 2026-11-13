@@ -163,6 +163,8 @@ type SystemSettings struct {
 	TableDefaultPageSize        int              `json:"table_default_page_size"`
 	TablePageSizeOptions        []int            `json:"table_page_size_options"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
+	DrillFactoryURL             string           `json:"drill_factory_url"`
+	ChannelGatewayURL           string           `json:"channel_gateway_url"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
 	DefaultConcurrency           int                          `json:"default_concurrency"`
@@ -403,6 +405,7 @@ type PublicSettings struct {
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     []CustomMenuItem         `json:"custom_menu_items"`
+	DrillFactoryURL                     string                   `json:"drill_factory_url"`
 	CustomEndpoints                     []CustomEndpoint         `json:"custom_endpoints"`
 	DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`

@@ -8,6 +8,10 @@ const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../AppSi
 const componentSource = readFileSync(componentPath, 'utf8')
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
 const styleSource = readFileSync(stylePath, 'utf8')
+const zhCommonPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../i18n/locales/zh/common.ts')
+const enCommonPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../i18n/locales/en/common.ts')
+const zhCommonSource = readFileSync(zhCommonPath, 'utf8')
+const enCommonSource = readFileSync(enCommonPath, 'utf8')
 
 describe('AppSidebar custom SVG styles', () => {
   it('does not override uploaded SVG fill or stroke colors', () => {
@@ -48,6 +52,53 @@ describe('AppSidebar collapsible groups', () => {
     // to the active-route heuristic only when the user has not clicked yet.
     expect(componentSource).toContain('const groupExpandOverrides = ref<Map<string, boolean>>(new Map())')
     expect(componentSource).not.toContain('expandedGroups.value.has(item.path) || isGroupActive(item)')
+  })
+})
+
+describe('AppSidebar usage navigation', () => {
+  it('keeps the parent usage item inactive on the nested hold review route', () => {
+    expect(componentSource).toContain("if (path === '/admin/usage') return route.path === path")
+    expect(componentSource).toContain("label: t('admin.usage.imageHolds.nav'), icon: HoldReviewIcon")
+  })
+})
+
+describe('AppSidebar reference pricing navigation', () => {
+  it('uses a distinct currency icon and the concise reference pricing label', () => {
+    expect(componentSource).toContain(
+      "{ path: '/admin/channels/reference-prices', label: t('nav.modelPlazaReferencePrices'), icon: ReferencePriceIcon }"
+    )
+    expect(componentSource).toContain('const ReferencePriceIcon =')
+    expect(componentSource).toContain("{ path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: PriceTagIcon }")
+    expect(zhCommonSource).toContain("modelPlazaReferencePrices: '参考定价'")
+    expect(enCommonSource).toContain("modelPlazaReferencePrices: 'Reference Pricing'")
+  })
+})
+
+describe('AppSidebar drill factory entry', () => {
+  it('does not render a duplicate entry in the sidebar', () => {
+    expect(componentSource).not.toContain('drillFactoryUrl')
+    expect(componentSource).not.toContain('drillFactoryNavItems')
+    expect(componentSource).not.toContain('drill-factory-menu')
+  })
+})
+
+describe('AppSidebar channel gateway entry', () => {
+  it('adds a configured admin-only external link under Channel Management', () => {
+    expect(componentSource).toContain('sanitizeUrl(adminSettingsStore.channelGatewayUrl || \'\')')
+    expect(componentSource).toContain("label: t('nav.channelGateway')")
+    expect(componentSource).toContain("path: '/external/channel-gateway'")
+    expect(componentSource).toContain('externalUrl: channelGatewayUrl.value')
+    expect(componentSource).toContain('icon: ChannelGatewayIcon')
+    expect(componentSource).toContain("h(Icon, { name: 'swap' })")
+    expect(componentSource).toContain('v-for="child in item.children.filter((entry) => entry.externalUrl)"')
+    expect(componentSource).toContain('target="_blank"')
+    expect(zhCommonSource).toContain("channelGateway: '渠道网关'")
+    expect(enCommonSource).toContain("channelGateway: 'Channel Gateway'")
+    const channelManagement = componentSource.indexOf("label: t('nav.channelManagement')")
+    const gatewayEntry = componentSource.indexOf("label: t('nav.channelGateway')")
+    const adminTemplate = componentSource.indexOf('<!-- Admin View: Admin menu first')
+    expect(channelManagement).toBeGreaterThan(adminTemplate)
+    expect(gatewayEntry).toBeGreaterThan(channelManagement)
   })
 })
 

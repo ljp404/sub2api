@@ -23,6 +23,8 @@ The shared application sidebar shows only the configured logo and site name;
 omit the version badge below the name. Keep version data and update logic intact.
 The user dropdown omits the upstream GitHub link and replay-onboarding entry;
 preserve profile, API keys, configured support details and logout.
+Onboarding welcome titles and descriptions use the configured public site name
+instead of the upstream product name.
 
 Success, warning, error, payment/provider branding and categorical chart colors
 retain their meaning. The approved model plaza remains isolated in its shadow

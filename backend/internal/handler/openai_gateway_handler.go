@@ -369,6 +369,7 @@ func NewOpenAIGatewayHandler(
 			maxAccountSwitches = cfg.Gateway.MaxAccountSwitches
 		}
 	}
+	gatewayService.StartVideoTokenBilling(apiKeyService)
 	return &OpenAIGatewayHandler{
 		gatewayService:           gatewayService,
 		billingCacheService:      billingCacheService,

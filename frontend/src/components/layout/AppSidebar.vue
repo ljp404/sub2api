@@ -62,7 +62,7 @@
               <!-- Children -->
               <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="mb-1 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
                 <router-link
-                  v-for="child in item.children"
+                  v-for="child in item.children.filter((entry) => !entry.externalUrl)"
                   :key="child.path"
                   :to="child.path"
                   class="sidebar-link mb-0.5 py-1.5 text-sm"
@@ -72,12 +72,27 @@
                   <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
                   <span>{{ child.label }}</span>
                 </router-link>
+                <a
+                  v-for="child in item.children.filter((entry) => entry.externalUrl)"
+                  :key="child.path"
+                  :href="child.externalUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="sidebar-link mb-0.5 py-1.5 text-sm"
+                >
+                  <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
+                  <span>{{ child.label }}</span>
+                </a>
               </div>
             </template>
             <!-- Normal item (no children) -->
-            <router-link
+            <component
               v-else
-              :to="item.path"
+              :is="item.externalUrl ? 'a' : RouterLink"
+              :to="item.externalUrl ? undefined : item.path"
+              :href="item.externalUrl"
+              :target="item.externalUrl ? '_blank' : undefined"
+              :rel="item.externalUrl ? 'noopener noreferrer' : undefined"
               class="sidebar-link mb-1"
               :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
               :title="sidebarCollapsed ? item.label : undefined"
@@ -95,7 +110,7 @@
               <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
               <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
               <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-            </router-link>
+            </component>
           </template>
         </div>
 
@@ -126,11 +141,15 @@
 
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
-        <div class="sidebar-section">
-          <router-link
+        <div v-if="userNavItems.length" class="sidebar-section">
+          <component
             v-for="item in userNavItems"
             :key="item.path"
-            :to="item.path"
+            :is="item.externalUrl ? 'a' : RouterLink"
+            :to="item.externalUrl ? undefined : item.path"
+            :href="item.externalUrl"
+            :target="item.externalUrl ? '_blank' : undefined"
+            :rel="item.externalUrl ? 'noopener noreferrer' : undefined"
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :title="sidebarCollapsed ? item.label : undefined"
@@ -140,7 +159,7 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-          </router-link>
+          </component>
         </div>
       </template>
     </nav>
@@ -187,7 +206,7 @@
 
 <script setup lang="ts">
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
@@ -201,6 +220,7 @@ interface NavItem {
   path: string
   label: string
   icon: unknown
+  externalUrl?: string
   iconSvg?: string
   hideInSimpleMode?: boolean
   children?: NavItem[]
@@ -250,6 +270,9 @@ const sidebarNavRef = ref<HTMLElement | null>(null)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
 const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
+const channelGatewayUrl = computed(() =>
+  sanitizeUrl(adminSettingsStore.channelGatewayUrl || ''),
+)
 
 // Per-group expand/collapse overrides. A group with no entry follows the
 // automatic behavior (expanded while the active route is one of its children);
@@ -477,6 +500,10 @@ const PluginIcon = {
   render: () => h(Icon, { name: 'cube' })
 }
 
+const ChannelGatewayIcon = {
+  render: () => h(Icon, { name: 'swap' })
+}
+
 const BellIcon = {
   render: () =>
     h(
@@ -647,6 +674,21 @@ const ShieldIcon = {
     )
 }
 
+const HoldReviewIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M8.25 3.75h-3A2.25 2.25 0 003 6v14.25h14.25V18m-9-14.25h3A2.25 2.25 0 0113.5 6v3.75h3.75M8.25 3.75V6h5.25m0 0L18 10.5M7.5 12h4.5m-4.5 3h3m4.5 1.5l1.5 1.5 3-3.75m-6.75-3H21v9.75h-6.75V13.5z'
+        })
+      ]
+    )
+}
+
 const PriceTagIcon = {
   render: () =>
     h(
@@ -662,6 +704,21 @@ const PriceTagIcon = {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
           d: 'M6 6h.008v.008H6V6z'
+        })
+      ]
+    )
+}
+
+const ReferencePriceIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M12 6v12m3-9.75C15 7.007 13.657 6 12 6S9 7.007 9 8.25s1.343 2.25 3 2.25 3 1.007 3 2.25-1.343 2.25-3 2.25-3-1.007-3-2.25M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
         })
       ]
     )
@@ -783,7 +840,16 @@ const adminNavItems = computed((): NavItem[] => {
       expandOnly: true,
       children: [
         { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: PriceTagIcon },
+        { path: '/admin/channels/reference-prices', label: t('nav.modelPlazaReferencePrices'), icon: ReferencePriceIcon },
         { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+        ...(channelGatewayUrl.value
+          ? [{
+              path: '/external/channel-gateway',
+              label: t('nav.channelGateway'),
+              icon: ChannelGatewayIcon,
+              externalUrl: channelGatewayUrl.value,
+            }]
+          : []),
       ],
     },
     // 「仅充值」站点连管理端的「订阅管理」入口也一并收起（路由本身不拦截）。
@@ -832,6 +898,7 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
+    { path: '/admin/usage/image-holds', label: t('admin.usage.imageHolds.nav'), icon: HoldReviewIcon },
     { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }
   ]
 
@@ -890,6 +957,7 @@ function handleMenuItemClick(itemPath: string) {
 }
 
 function isActive(path: string): boolean {
+  if (path === '/admin/usage') return route.path === path
   return route.path === path || route.path.startsWith(path + '/')
 }
 

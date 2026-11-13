@@ -436,6 +436,22 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	} else {
 		usageLog.RateMultiplier = multiplier
 	}
+	if cost != nil && cost.ParameterPricing != nil {
+		usageLog.RateMultiplier, _ = strconv.ParseFloat(cost.ParameterPricing.Input.Multiplier, 64)
+	}
+	if cost != nil && cost.VideoTokenPricing != nil {
+		usageLog.RateMultiplier, _ = strconv.ParseFloat(cost.VideoTokenPricing.Input.Multiplier, 64)
+		usageLog.VideoResolution = optionalTrimmedStringPtr(strings.TrimPrefix(cost.VideoTokenPricing.Input.Tier, "fast:"))
+		seconds := result.VideoDurationSeconds
+		usageLog.VideoDurationSeconds = &seconds
+	}
+	if cost != nil && cost.VideoTaskPricing != nil {
+		usageLog.RateMultiplier, _ = strconv.ParseFloat(cost.VideoTaskPricing.Input.Multiplier, 64)
+		usageLog.VideoResolution = optionalTrimmedStringPtr(cost.VideoTaskPricing.Input.Resolution)
+		seconds, _ := strconv.Atoi(cost.VideoTaskPricing.Input.DurationSeconds)
+		usageLog.VideoDurationSeconds = &seconds
+		usageLog.VideoTaskPricing = cost.VideoTaskPricing
+	}
 	usageLog.AccountRateMultiplier = &accountRateMultiplier
 	usageLog.BillingType = billingType
 	usageLog.Stream = result.Stream
@@ -522,6 +538,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {
+		if cost != nil && ((cost.ParameterPricing != nil && cost.ParameterPricing.HoldID != "") ||
+			(cost.VideoTaskPricing != nil && cost.VideoTaskPricing.HoldID != "")) {
+			// A durable staged settlement will write the accurate usage row on
+			// recovery. Do not insert a zero-cost row that dedup would preserve.
+			return billingErr
+		}
 		usageLog.ActualCost = 0
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 		return billingErr
@@ -591,6 +613,52 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	pricingAt time.Time,
 ) (*CostBreakdown, error) {
 	billingModel := firstUsageBillingModel(billingModels)
+	if result != nil && result.VideoTaskQuote != nil {
+		input := result.VideoTaskQuote.Input
+		if result.VideoDurationSeconds > 0 {
+			input.DurationSeconds = strconv.Itoa(result.VideoDurationSeconds)
+		}
+		snapshot, err := CalculateVideoTaskPricing(result.VideoTaskQuote.Rule, input)
+		if err != nil {
+			return nil, err
+		}
+		snapshot.HoldID = result.VideoTaskQuote.HoldID
+		return videoTaskPricingCost(snapshot), nil
+	}
+	if result != nil && result.VideoTokenQuote != nil {
+		var measured *int64
+		switch result.VideoTokenQuote.TokenSource {
+		case "upstream":
+			measured = &result.VideoTokenQuote.Tokens
+		case "", "formula":
+		default:
+			return nil, fmt.Errorf("unsupported video token source")
+		}
+		snapshot, err := calculateVideoTokenPricing(result.VideoTokenQuote.Rule, result.VideoTokenQuote.Input, measured)
+		if err != nil {
+			return nil, err
+		}
+		snapshot.HoldID = result.VideoTokenQuote.HoldID
+		return videoTokenPricingCost(snapshot), nil
+	}
+	if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeVideoToken {
+		return nil, fmt.Errorf("video token pricing requires a validated Seedance task")
+	}
+	if result != nil && result.ParameterQuote != nil {
+		snapshot, err := CalculateParameterPricing(result.ParameterQuote.Rule, ParameterPricingInput{
+			Dimensions: result.ParameterQuote.Input.Dimensions,
+			Quantity:   result.ImageCount,
+			Multiplier: result.ParameterQuote.Input.Multiplier,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("calculate parameter billing: %w", err)
+		}
+		snapshot.HoldID = result.ParameterQuote.HoldID
+		return parameterPricingCost(snapshot), nil
+	}
+	if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeParameter {
+		return nil, fmt.Errorf("parameter pricing requires validated Images generation or edit parameters")
+	}
 	if result != nil && result.WebSearchCalls > 0 {
 		// Codex alpha/search 网页搜索按次计费：上游不返回 usage/token 字段，单价只取
 		// 分组覆盖价（nil 时默认 0.01 = 官方 $10/1000 次），不参与渠道级模型定价。
@@ -835,15 +903,21 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 	resolution := NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
 	durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
 	resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
-	if resolved != nil && resolved.Source == PricingSourceGroup && resolved.Mode == BillingModeVideo {
+	if resolved != nil && resolved.Source == PricingSourceGroup &&
+		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage || resolved.Mode == BillingModeVideo) {
 		gid := apiKey.Group.ID
+		units := float64(videoCount)
+		if resolved.Mode == BillingModeVideo {
+			units = float64(videoCount * durationSeconds)
+		}
 		cost, err := s.billingService.CalculateCostUnified(CostInput{
 			Ctx: ctx, Model: billingModel, GroupID: &gid, Group: apiKey.Group,
-			UsageUnits: float64(videoCount * durationSeconds), SizeTier: resolution,
+			RequestCount: videoCount, UsageUnits: units, SizeTier: resolution,
 			RateMultiplier: multiplier, Resolver: s.resolver, Resolved: resolved,
 			ReasoningEffort: optionalStringValue(result.ReasoningEffort),
 		})
 		if err == nil {
+			cost.BillingMode = string(BillingModeVideo)
 			return cost
 		}
 	}

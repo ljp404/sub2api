@@ -87,12 +87,7 @@
             </label>
             <Select
               :modelValue="entry.billing_mode"
-              @update:modelValue="emit('update', {
-                ...entry,
-                billing_mode: $event as BillingMode,
-                intervals: [],
-                time_pricing: { ...entry.time_pricing, periods: [] },
-              })"
+              @update:modelValue="changeBillingMode($event as BillingMode)"
               :options="billingModeOptions"
               class="mt-1"
             />
@@ -225,7 +220,15 @@
         </div>
 
         <!-- Image/video mode -->
-        <div v-else-if="entry.billing_mode === 'image' || entry.billing_mode === 'video'">
+        <div v-else-if="entry.billing_mode === 'image' || (entry.billing_mode === 'video' && !entry.video_task_pricing)">
+          <button
+            v-if="entry.billing_mode === 'video' && !entry.video_task_pricing"
+            type="button"
+            class="btn btn-secondary mt-3 text-xs"
+            @click="emit('update', { ...entry, video_task_pricing: emptyVideoTaskPricing() })"
+          >
+            {{ t('admin.channels.videoTaskPricing.enable') }}
+          </button>
           <!-- Default image price (per-request, same as per_request mode) -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ entry.billing_mode === 'video' ? t('admin.channels.form.defaultVideoPrice') : t('admin.channels.form.defaultImagePrice') }}
@@ -257,7 +260,26 @@
           </div>
         </div>
 
-        <div class="mt-3 border-t border-gray-200 pt-3 dark:border-dark-600" data-testid="reasoning-effort-multipliers">
+        <div v-else-if="entry.billing_mode === 'video' && entry.video_task_pricing">
+          <VideoTaskPricingEditor
+            :model-value="entry.video_task_pricing"
+            @update:model-value="emit('update', { ...entry, video_task_pricing: $event })"
+          />
+          <button
+            type="button"
+            class="btn btn-secondary mt-3 text-xs"
+            @click="emit('update', { ...entry, video_task_pricing: null })"
+          >
+            {{ t('admin.channels.videoTaskPricing.disable') }}
+          </button>
+        </div>
+
+        <ParameterPricingEditor v-else-if="entry.billing_mode === 'parameter'" :model-value="entry.parameter_pricing"
+          @update:model-value="emit('update', { ...entry, parameter_pricing: $event })" />
+        <VideoTokenPricingEditor v-else-if="entry.billing_mode === 'video_token'" :model-value="entry.video_token_pricing"
+          @update:model-value="emit('update', { ...entry, video_token_pricing: $event })" />
+
+        <div v-if="entry.billing_mode !== 'parameter' && entry.billing_mode !== 'video_token'" class="mt-3 border-t border-gray-200 pt-3 dark:border-dark-600" data-testid="reasoning-effort-multipliers">
           <div class="flex items-center justify-between gap-2">
             <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
               {{ t('admin.channels.form.reasoningEffortMultipliers') }}
@@ -306,6 +328,12 @@ import Icon from '@/components/icons/Icon.vue'
 import IntervalRow from './IntervalRow.vue'
 import ModelTagInput from './ModelTagInput.vue'
 import TimePricingSection from './TimePricingSection.vue'
+import ParameterPricingEditor from './ParameterPricingEditor.vue'
+import { emptyParameterPricing } from './parameterPricing'
+import VideoTokenPricingEditor from './VideoTokenPricingEditor.vue'
+import VideoTaskPricingEditor from './VideoTaskPricingEditor.vue'
+import { emptyVideoTaskPricing } from './videoTaskPricing'
+import { supplierVideoTokenPricing } from './videoTokenPricing'
 import type { PricingFormEntry, IntervalFormEntry } from './types'
 import { perTokenToMTok, getPlatformTagClass, isValidPositiveMultiplier, validateReasoningEffortMultipliers } from './types'
 import { REASONING_EFFORT_LEVELS, type ReasoningEffortLevel } from '@/constants/channel'
@@ -320,6 +348,7 @@ const props = withDefaults(defineProps<{
   hideTokenIntervals?: boolean
   enableTimePricing?: boolean
   enableTierMultipliers?: boolean
+  enableParameterPricing?: boolean
 }>(), {
   hideTokenIntervals: false,
   enableTimePricing: false,
@@ -338,8 +367,24 @@ const billingModeOptions = computed(() => [
   { value: 'token', label: t('admin.channels.billingMode.token') },
   { value: 'per_request', label: t('admin.channels.billingMode.perRequest') },
   { value: 'image', label: t('admin.channels.billingMode.image') },
-  { value: 'video', label: t('admin.channels.billingMode.video') }
+  { value: 'video', label: t('admin.channels.billingMode.video') },
+  ...(props.enableParameterPricing && (props.platform === 'openai' || props.platform === 'composite')
+    ? [
+      { value: 'parameter', label: t('admin.channels.billingMode.parameter') },
+      { value: 'video_token', label: t('admin.channels.billingMode.videoToken') },
+    ] : []),
 ])
+
+function changeBillingMode(mode: BillingMode) {
+  emit('update', {
+    ...props.entry, billing_mode: mode, intervals: [],
+    time_pricing: { ...props.entry.time_pricing, periods: [] },
+    parameter_pricing: mode === 'parameter' ? (props.entry.parameter_pricing || emptyParameterPricing()) : null,
+    video_token_pricing: mode === 'video_token' ? (props.entry.video_token_pricing || supplierVideoTokenPricing()) : null,
+    video_task_pricing: mode === 'video' ? props.entry.video_task_pricing : null,
+    reasoning_effort_multipliers: mode === 'parameter' || mode === 'video_token' ? null : props.entry.reasoning_effort_multipliers,
+  })
+}
 
 const billingModeLabel = computed(() => {
   const opt = billingModeOptions.value.find(o => o.value === props.entry.billing_mode)
@@ -410,6 +455,7 @@ function removeInterval(idx: number) {
 async function onModelsUpdate(newModels: string[]) {
   const oldModels = props.entry.models
   emit('update', { ...props.entry, models: newModels })
+  if (props.entry.billing_mode === 'parameter' || props.entry.billing_mode === 'video_token') return
 
   // 仅在「空条目首次加入单个模型」时自动填充默认价：
   // 条目已有模型时（即使价格留空、按各模型的官方默认价回退）追加模型不应改写整条价格，

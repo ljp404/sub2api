@@ -165,25 +165,6 @@ button.quiet {
   color: #9299a7;
   font-weight: 400;
 }
-.source-note {
-  border-top: 1px solid #eff0f4;
-  padding-top: 18px;
-  font-size: 12px;
-  line-height: 1.9;
-  color: #969ba5;
-}
-.source-note strong {
-  color: #5e6572;
-  font-weight: 500;
-}
-.source-note .status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #2db895;
-  display: inline-block;
-  margin-right: 6px;
-}
 main {
   min-width: 0;
 }
@@ -617,17 +598,6 @@ input[type='checkbox'].model-check {
     opacity: 0.4;
   }
 }
-.page-foot {
-  font-size: 11px;
-  color: #9a9faa;
-  margin-top: 22px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.page-foot button {
-  min-height: 26px;
-}
 .mobile-filter,
 .close-sidebar {
   display: none !important;
@@ -1042,7 +1012,7 @@ body {
   font-weight: 700;
 }
 .brand img {
-  opacity: 0.75;
+  opacity: 1;
 }
 .prices {
   font-size: 11px;

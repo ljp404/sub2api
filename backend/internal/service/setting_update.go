@@ -358,6 +358,8 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 	updates[SettingKeyTablePageSizeOptions] = string(tablePageSizeOptionsJSON)
 	updates[SettingKeyCustomMenuItems] = settings.CustomMenuItems
+	updates[SettingKeyDrillFactoryURL] = strings.TrimSpace(settings.DrillFactoryURL)
+	updates[SettingKeyChannelGatewayURL] = strings.TrimSpace(settings.ChannelGatewayURL)
 	updates[SettingKeyCustomEndpoints] = settings.CustomEndpoints
 
 	// 默认配置

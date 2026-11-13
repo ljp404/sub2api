@@ -194,6 +194,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyTableDefaultPageSize,
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
+		SettingKeyDrillFactoryURL,
 		SettingKeyCustomEndpoints,
 		SettingKeyLinuxDoConnectEnabled,
 		SettingKeyDingTalkConnectEnabled,
@@ -338,6 +339,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		TableDefaultPageSize:                tableDefaultPageSize,
 		TablePageSizeOptions:                tablePageSizeOptions,
 		CustomMenuItems:                     settings[SettingKeyCustomMenuItems],
+		DrillFactoryURL:                     strings.TrimSpace(settings[SettingKeyDrillFactoryURL]),
 		CustomEndpoints:                     settings[SettingKeyCustomEndpoints],
 		LinuxDoOAuthEnabled:                 linuxDoEnabled,
 		DingTalkOAuthEnabled:                dingTalkEnabled,
@@ -597,6 +599,7 @@ type PublicSettingsInjectionPayload struct {
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     json.RawMessage          `json:"custom_menu_items"`
+	DrillFactoryURL                     string                   `json:"drill_factory_url"`
 	CustomEndpoints                     json.RawMessage          `json:"custom_endpoints"`
 	LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`
 	DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
@@ -691,6 +694,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		TableDefaultPageSize:                settings.TableDefaultPageSize,
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     filterUserVisibleMenuItems(settings.CustomMenuItems),
+		DrillFactoryURL:                     settings.DrillFactoryURL,
 		CustomEndpoints:                     safeRawJSONArray(settings.CustomEndpoints),
 		LinuxDoOAuthEnabled:                 settings.LinuxDoOAuthEnabled,
 		DingTalkOAuthEnabled:                settings.DingTalkOAuthEnabled,

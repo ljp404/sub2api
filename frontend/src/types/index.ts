@@ -246,6 +246,7 @@ export interface PublicSettings {
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
+  drill_factory_url?: string
   custom_endpoints: CustomEndpoint[]
   linuxdo_oauth_enabled: boolean
   dingtalk_oauth_enabled?: boolean
@@ -1861,6 +1862,8 @@ export interface UsageLog {
 
   // 计费模式
   billing_mode?: string | null
+  parameter_pricing?: import('@/api/admin/channels').ParameterPricingSnapshot | null
+  video_token_pricing?: import('@/api/admin/channels').VideoTokenPricingSnapshot | null
 
   created_at: string
 

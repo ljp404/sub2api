@@ -280,6 +280,23 @@ func TestSettingService_GetPublicSettingsForInjection_MirrorsSubscriptionEnabled
 	}
 }
 
+func TestSettingService_GetPublicSettings_ExposesDrillFactoryURL(t *testing.T) {
+	const drillFactoryURL = "https://drill.example.com"
+	svc := NewSettingService(&settingPublicRepoStub{
+		values: map[string]string{SettingKeyDrillFactoryURL: drillFactoryURL},
+	}, &config.Config{})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, drillFactoryURL, settings.DrillFactoryURL)
+
+	raw, err := svc.GetPublicSettingsForInjection(context.Background())
+	require.NoError(t, err)
+	payload, ok := raw.(*PublicSettingsInjectionPayload)
+	require.True(t, ok)
+	require.Equal(t, drillFactoryURL, payload.DrillFactoryURL)
+}
+
 // payment_balance_disabled is exposed publicly so the user shell can derive the site
 // billing mode (recharge & subscription / recharge only / subscription only) before any
 // authenticated checkout call. Strict true, mirroring the payment-config parser.

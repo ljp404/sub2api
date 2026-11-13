@@ -998,19 +998,23 @@ func TestBuildGrokResponsesRequestIgnoresBlockedHeaderOverrides(t *testing.T) {
 
 func TestGrokMediaGenerationGateCoversImagesAndVideo(t *testing.T) {
 	tests := []struct {
-		name     string
-		endpoint GrokMediaEndpoint
-		want     bool
+		name                  string
+		endpoint              GrokMediaEndpoint
+		wantGeneration        bool
+		wantImagePermission   bool
 	}{
-		{name: "image generation", endpoint: GrokMediaEndpointImagesGenerations, want: true},
-		{name: "image edit", endpoint: GrokMediaEndpointImagesEdits, want: true},
-		{name: "video generation", endpoint: GrokMediaEndpointVideosGenerations, want: true},
-		{name: "video status", endpoint: GrokMediaEndpointVideoStatus, want: false},
+		{name: "image generation", endpoint: GrokMediaEndpointImagesGenerations, wantGeneration: true, wantImagePermission: true},
+		{name: "image edit", endpoint: GrokMediaEndpointImagesEdits, wantGeneration: true, wantImagePermission: true},
+		{name: "video generation", endpoint: GrokMediaEndpointVideosGenerations, wantGeneration: true},
+		{name: "Seedance generation", endpoint: SeedanceEndpointCreate, wantGeneration: true},
+		{name: "MiniMax video generation", endpoint: MiniMaxVideoEndpointCreate, wantGeneration: true},
+		{name: "video status", endpoint: GrokMediaEndpointVideoStatus},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, tt.endpoint.IsGenerationRequest())
+			require.Equal(t, tt.wantGeneration, tt.endpoint.IsGenerationRequest())
+			require.Equal(t, tt.wantImagePermission, tt.endpoint.RequiresImageGenerationPermission())
 		})
 	}
 }

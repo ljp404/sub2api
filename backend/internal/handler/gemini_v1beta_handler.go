@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
@@ -758,6 +759,61 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		if fs.SwitchCount > 0 {
 			requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 		}
+		var parameterQuote *service.ParameterPricingSnapshot
+		accountMappedModel := account.GetMappedModel(modelName)
+		pricingModel := accountMappedModel
+		switch channelMapping.BillingModelSource {
+		case service.BillingModelSourceRequested:
+			pricingModel = reqModel
+		case service.BillingModelSourceChannelMapped:
+			pricingModel = channelMapping.MappedModel
+		}
+		if action != "countTokens" && service.GeminiImageGenerationIntent(
+			body, urlModel, reqModel, channelMapping.MappedModel, modelName, accountMappedModel,
+		) && h.openAIGatewayService != nil {
+			parameterQuote, err = h.openAIGatewayService.PrepareParameterPricing(
+				requestCtx,
+				apiKey,
+				[]string{pricingModel, channelMapping.MappedModel, reqModel, accountMappedModel, modelName},
+				service.GeminiImagePricingDimensions(body),
+				1,
+			)
+			if err != nil {
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				googleError(c, http.StatusBadRequest, err.Error())
+				return
+			}
+		}
+		parameterHoldUserID := int64(0)
+		parameterHoldSent := false
+		parameterHoldRejected := false
+		if parameterQuote != nil {
+			if err := h.openAIGatewayService.ReserveImageParameterQuote(requestCtx, apiKey, account, parameterQuote); err != nil {
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				status, _, message, _ := billingErrorDetails(err)
+				googleError(c, status, message)
+				return
+			}
+			parameterHoldUserID = authSubject.UserID
+			if err := h.openAIGatewayService.MarkImageParameterQuoteSubmitted(requestCtx, parameterQuote); err != nil {
+				if finishErr := h.openAIGatewayService.FinishImageParameterQuoteAttempt(
+					requestCtx, parameterQuote, parameterHoldUserID, false, false, false, nil,
+				); finishErr != nil {
+					reqLog.Error("gemini.image_parameter_hold_release_failed", zap.Error(finishErr))
+				}
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				status, _, message, _ := billingErrorDetails(err)
+				googleError(c, status, message)
+				return
+			}
+			parameterHoldSent = true
+		}
 		sessionGroupID := derefGroupID(apiKey.GroupID)
 		if account.Platform == service.PlatformAntigravity && account.Type != service.AccountTypeAPIKey {
 			result, err = h.antigravityGatewayService.ForwardGemini(
@@ -778,6 +834,26 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			accountReleaseFunc()
 		}
 		if err != nil {
+			if parameterQuote != nil && parameterQuote.HoldID != "" {
+				var failoverErr *service.UpstreamFailoverError
+				if errors.As(err, &failoverErr) {
+					parameterHoldRejected = failoverErr.StatusCode >= 400 && failoverErr.StatusCode < 500 &&
+						failoverErr.StatusCode != http.StatusRequestTimeout
+				} else {
+					status := c.Writer.Status()
+					parameterHoldRejected = status >= 400 && status < 500 && status != http.StatusRequestTimeout
+				}
+				err = h.openAIGatewayService.FinishImageParameterQuoteAttempt(
+					requestCtx, parameterQuote, parameterHoldUserID, parameterHoldSent,
+					parameterHoldRejected, false, err,
+				)
+				if errors.Is(err, service.ErrImageParameterOutcomeUncertain) {
+					if !c.Writer.Written() {
+						googleError(c, http.StatusBadGateway, "图片生成结果暂无法确认，预计费用保持冻结，请勿重复提交并联系管理员核对")
+					}
+					return
+				}
+			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				failoverAction := fs.HandleFailoverError(c.Request.Context(), h.gatewayService, account.ID, account.Platform, account.GetPoolModeRetryCount(), failoverErr)
@@ -800,6 +876,9 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			failoverClientGone(c)
 			reqLog.Error("gemini.forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			return
+		}
+		if result != nil {
+			result.ParameterQuote = parameterQuote
 		}
 
 		// 捕获请求信息（用于异步记录，避免在 goroutine 中访问 gin.Context）
@@ -830,7 +909,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 		sessionID := service.ExtractClientSessionID(c)
 		// 长上下文阶梯由目录数据驱动，统一在计费路径内生效，入口无需声明。
-		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+		recordUsage := func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 				Result:             result,
 				QuotaPlatform:      quotaPlatform,
@@ -858,7 +937,16 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 					zap.Int64("account_id", account.ID),
 				).Error("gemini.record_usage_failed", zap.Error(err))
 			}
-		})
+		}
+		if parameterQuote != nil && parameterQuote.HoldID != "" {
+			// A parameter-priced image hold must have its settlement staged before
+			// the successful response returns, matching the OpenAI image flow.
+			billingCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 30*time.Second)
+			recordUsage(billingCtx)
+			cancel()
+		} else {
+			h.submitUsageRecordTask(c.Request.Context(), recordUsage)
+		}
 		reqLog.Debug("gemini.request_completed",
 			zap.Int64("account_id", account.ID),
 			zap.Int("switch_count", fs.SwitchCount),

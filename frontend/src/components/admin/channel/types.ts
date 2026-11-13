@@ -1,4 +1,4 @@
-import type { BillingMode, ChannelTimePricing, PricingInterval } from '@/api/admin/channels'
+import type { BillingMode, ChannelTimePricing, PricingInterval, ParameterPricing, VideoTokenPricing, VideoTaskPricing } from '@/api/admin/channels'
 import { REASONING_EFFORT_LEVELS } from '@/constants/channel'
 
 type TranslateFn = (key: string, params?: Record<string, unknown>) => string
@@ -21,6 +21,10 @@ export interface IntervalFormEntry {
 }
 
 export interface PricingFormEntry {
+  platform?: string
+  video_token_pricing?: VideoTokenPricing | null
+  video_task_pricing?: VideoTaskPricing | null
+  parameter_pricing?: ParameterPricing | null
   models: string[]
   billing_mode: BillingMode
   input_price: number | string | null

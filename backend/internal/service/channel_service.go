@@ -587,6 +587,18 @@ func (s *ChannelService) IsModelRestricted(ctx context.Context, groupID int64, m
 	if lk == nil {
 		return false
 	}
+	if !isVideoTokenEndpoint(ctx) {
+		p := lookupPricingAcrossPlatforms(lk.cache, groupID, lk.platform, strings.ToLower(model))
+		if p != nil && p.BillingMode == BillingModeVideoToken {
+			return true
+		}
+	}
+	if !OpenAIImagesEndpointFromContext(ctx) {
+		p := lookupPricingAcrossPlatforms(lk.cache, groupID, lk.platform, strings.ToLower(model))
+		if p != nil && p.BillingMode == BillingModeParameter {
+			return true
+		}
+	}
 	return checkRestricted(lk, groupID, model)
 }
 
@@ -738,6 +750,11 @@ func validatePricingTimePricing(pricing []ChannelModelPricing) error {
 func validateAccountStatsPricingRules(rules []AccountStatsPricingRule) error {
 	for i := range rules {
 		for _, pricing := range rules[i].Pricing {
+			if pricing.BillingMode == BillingModeParameter || pricing.ParameterPricing != nil ||
+				pricing.BillingMode == BillingModeVideoToken || pricing.VideoTokenPricing != nil ||
+				pricing.VideoTaskPricing != nil {
+				return infraerrors.BadRequest("ACCOUNT_STATS_PARAMETER_PRICING_UNSUPPORTED", "parameter and task pricing are only supported for channel selling prices")
+			}
 			if pricing.TimePricing != nil && len(pricing.TimePricing.Periods) > 0 {
 				return fmt.Errorf("account stats pricing rule #%d: %w", i+1,
 					infraerrors.BadRequest("ACCOUNT_STATS_TIME_PRICING_UNSUPPORTED", "account stats pricing does not support time pricing"))
@@ -767,8 +784,36 @@ func validatePricingBillingMode(pricing []ChannelModelPricing) error {
 }
 
 func checkBillingModeRequirements(p ChannelModelPricing) error {
+	if p.VideoTaskPricing != nil {
+		if p.BillingMode != BillingModeVideo {
+			return infraerrors.BadRequest("INVALID_VIDEO_TASK_PRICING", "video_task_pricing requires video billing mode")
+		}
+		if err := ValidateVideoTaskPricing(p.VideoTaskPricing); err != nil {
+			return infraerrors.BadRequest("INVALID_VIDEO_TASK_PRICING", err.Error())
+		}
+	}
+	if p.BillingMode == BillingModeVideoToken {
+		if p.Platform != PlatformOpenAI || len(p.Intervals) > 0 || len(p.ReasoningEffortMultipliers) > 0 || p.TimePricing != nil {
+			return infraerrors.BadRequest("INVALID_VIDEO_TOKEN_PRICING", "video token pricing requires OpenAI without legacy intervals, time pricing or reasoning multipliers")
+		}
+		if err := ValidateVideoTokenPricing(p.VideoTokenPricing); err != nil {
+			return infraerrors.BadRequest("INVALID_VIDEO_TOKEN_PRICING", err.Error())
+		}
+	} else if p.VideoTokenPricing != nil {
+		return infraerrors.BadRequest("INVALID_VIDEO_TOKEN_PRICING", "video_token_pricing requires video_token billing mode")
+	}
+	if p.BillingMode == BillingModeParameter {
+		if p.Platform != PlatformOpenAI || len(p.Intervals) > 0 || len(p.ReasoningEffortMultipliers) > 0 {
+			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", "parameter pricing requires OpenAI, without legacy intervals or reasoning multipliers")
+		}
+		if err := ValidateParameterPricing(p.ParameterPricing); err != nil {
+			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", err.Error())
+		}
+	} else if p.ParameterPricing != nil {
+		return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", "parameter_pricing requires parameter billing mode")
+	}
 	if p.BillingMode == BillingModePerRequest || p.BillingMode == BillingModeImage || p.BillingMode == BillingModeVideo {
-		if p.PerRequestPrice == nil && len(p.Intervals) == 0 {
+		if p.PerRequestPrice == nil && len(p.Intervals) == 0 && p.VideoTaskPricing == nil {
 			return infraerrors.BadRequest(
 				"BILLING_MODE_MISSING_PRICE",
 				"per-request price or intervals required for per_request/image billing mode",

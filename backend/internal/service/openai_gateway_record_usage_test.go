@@ -2526,6 +2526,51 @@ func TestOpenAIGatewayServiceRecordUsage_GroupVideoPriceOverridesChannelImagePri
 	require.Equal(t, string(BillingModeVideo), *usageRepo.lastLog.BillingMode)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_GroupPerRequestPricingForVideo(t *testing.T) {
+	groupID := int64(1281)
+	perRequestPrice := 0.075
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+	svc.resolver = NewModelPricingResolver(nil, svc.billingService)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:            "minimax-video-per-request",
+			ResponseID:           "minimax:task-123",
+			Model:                "MiniMax-H3",
+			BillingModel:         "MiniMax-H3",
+			VideoCount:           1,
+			VideoResolution:      "720p",
+			VideoDurationSeconds: 5,
+			Usage:                OpenAIUsage{OutputTokens: 250000},
+			Duration:             time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      101281,
+			GroupID: i64p(groupID),
+			Group: &Group{
+				ID:             groupID,
+				Platform:       PlatformMiniMax,
+				RateMultiplier: 1,
+				ModelPricing: []ChannelModelPricing{{
+					Platform:        PlatformMiniMax,
+					Models:          []string{"MiniMax-H3"},
+					BillingMode:     BillingModePerRequest,
+					PerRequestPrice: &perRequestPrice,
+				}},
+			},
+		},
+		User:    &User{ID: 201281},
+		Account: &Account{ID: 301281, Platform: PlatformMiniMax},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, perRequestPrice, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, perRequestPrice, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, usageRepo.lastLog.VideoCount)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_GroupVideoModelPriceOverridesFlatAndChannelPrice(t *testing.T) {
 	groupID := int64(129)
 	channelPrice := 0.201

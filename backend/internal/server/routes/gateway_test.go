@@ -94,6 +94,44 @@ func TestGatewayRoutesOpenAIAlphaSearchPathsAreRegistered(t *testing.T) {
 	}
 }
 
+func TestGatewayRoutesMiniMaxVideoV2PathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformMiniMax)
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+
+	require.True(t, registered["POST /v2/video_generation"])
+	require.True(t, registered["GET /v2/query/video_generation/:task_id"])
+}
+
+func TestGatewayRoutesMiniMaxVideoV2CompositeLookupReachesTaskHandler(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformComposite)
+	req := httptest.NewRequest(http.MethodGet, "/v2/query/video_generation/task-123", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// The test router omits the auth subject, so the handler returns 500 after
+	// passing the platform gate. A 404 indicates the old gate.
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.NotContains(t, w.Body.String(), "only supported for MiniMax groups")
+}
+
+func TestGatewayRoutesMiniMaxVideoV2CompositeCreateRequiresResolvedPlatform(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformComposite)
+	req := httptest.NewRequest(http.MethodPost, "/v2/video_generation", strings.NewReader(`{"model":"MiniMax-H3"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// This fixture has no composite model resolver, so an unresolved create
+	// stays Composite and must not enter the MiniMax create handler.
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Contains(t, w.Body.String(), "only supported for MiniMax groups")
+}
+
 func TestGatewayRoutesAlphaSearchRejectsUnsupportedGroup(t *testing.T) {
 	router := newGatewayRoutesTestRouter(service.PlatformGrok)
 	req := httptest.NewRequest(http.MethodPost, "/v1/alpha/search", strings.NewReader(`{"model":"gpt-5.6-sol"}`))

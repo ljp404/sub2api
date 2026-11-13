@@ -109,6 +109,7 @@ const DataTableStub = {
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-latency" :row="row" />
         <slot name="cell-cost" :row="row" />
+        <slot name="cell-endpoint" :row="row" />
         <slot name="cell-request_id" :row="row" />
         <slot name="cell-upstream_request_id" :row="row" />
       </div>
@@ -143,6 +144,35 @@ const baseImageRow = {
   image_size_source: null,
   image_size_breakdown: null,
 }
+
+describe('admin UsageTable endpoint column', () => {
+  it('shortens task IDs while keeping the full endpoint available on hover', () => {
+    const endpoint = '/v2/query/video_generation/9722d1be-2a7c-4e6a-85b7-31899503905f'
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          ...baseImageRow,
+          inbound_endpoint: endpoint,
+          upstream_endpoint: '/v2/query/video_generation/9722d1be-2a7c-4e6a-85b7-31899503905f',
+        }],
+        loading: false,
+        columns: [{ key: 'endpoint', label: 'Endpoint' }],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('/v2/query/video_generation/:task_id')
+    expect(wrapper.text()).not.toContain('9722d1be-2a7c-4e6a-85b7-31899503905f')
+    expect(wrapper.find('[title="/v2/query/video_generation/9722d1be-2a7c-4e6a-85b7-31899503905f"]').exists()).toBe(true)
+  })
+})
 
 describe('admin UsageTable tooltip', () => {
   it('shows output TPS in the latency cell using total duration', () => {

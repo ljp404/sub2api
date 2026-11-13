@@ -1,8 +1,13 @@
 package handler
 
 import (
+	"database/sql"
+	"errors"
 	"log/slog"
+	"strconv"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -47,6 +52,14 @@ type modelPlazaOfficialPricing struct {
 	Intervals []userPricingIntervalDTO `json:"intervals,omitempty"`
 }
 
+type modelPlazaReferencePricing struct {
+	Pricing     service.ModelPlazaReferencePricing `json:"pricing"`
+	SourceLabel string                             `json:"source_label"`
+	SourceURL   string                             `json:"source_url"`
+	Notes       string                             `json:"notes"`
+	UpdatedAt   string                             `json:"updated_at"`
+}
+
 // modelPlazaTimePricingPeriod 分时倍率时段（配置时区当天 [start, end)）。
 type modelPlazaTimePricingPeriod struct {
 	StartTime  string  `json:"start_time"`
@@ -64,14 +77,155 @@ type modelPlazaTimePricing struct {
 
 // modelPlazaModel 广场模型条目：实收口径展示定价（白名单形态）+ 官方参考价。
 type modelPlazaModel struct {
-	Name            string                     `json:"name"`
-	Platform        string                     `json:"platform"`
-	Pricing         *userSupportedModelPricing `json:"pricing"`
-	OfficialPricing *modelPlazaOfficialPricing `json:"official_pricing"`
+	Name             string                     `json:"name"`
+	Platform         string                     `json:"platform"`
+	Pricing          *userSupportedModelPricing `json:"pricing"`
+	OfficialPricing  *modelPlazaOfficialPricing `json:"official_pricing"`
+	ReferencePricing *modelPlazaReferencePricing `json:"reference_pricing,omitempty"`
 	// LongContextBasis 多档时的计价基准："whole_request"（整单按档）| "marginal"（仅超出部分）。
 	LongContextBasis string `json:"long_context_basis,omitempty"`
 	// TimePricing 分时倍率时段，落在时段内的请求整单乘倍率；无分时省略。
 	TimePricing *modelPlazaTimePricing `json:"time_pricing,omitempty"`
+}
+
+type updateModelPlazaReferencePriceRequest struct {
+	Platform    string                             `json:"platform"`
+	ModelName   string                             `json:"model_name"`
+	Pricing     service.ModelPlazaReferencePricing `json:"pricing"`
+	SourceLabel string                             `json:"source_label"`
+	SourceURL   string                             `json:"source_url"`
+	Notes       string                             `json:"notes"`
+}
+
+type importModelPlazaReferencePricesRequest struct {
+	Prices []updateModelPlazaReferencePriceRequest `json:"prices"`
+}
+
+type deleteModelPlazaReferencePricesRequest struct {
+	IDs []int64 `json:"ids"`
+}
+
+// ListReferencePrices lists manually maintained, display-only reference prices.
+func (h *ModelPlazaHandler) ListReferencePrices(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	prices, pageInfo, err := h.plazaService.ListReferencePricesPage(c.Request.Context(), pagination.PaginationParams{
+		Page: page, PageSize: pageSize,
+	}, c.Query("search"))
+	if err != nil {
+		slog.Error("list model plaza reference prices failed", "error", err)
+		response.Error(c, 500, "Failed to list model plaza reference prices")
+		return
+	}
+	response.Paginated(c, prices, pageInfo.Total, pageInfo.Page, pageInfo.PageSize)
+}
+
+// UpsertReferencePrice creates or replaces a manual reference price by platform and model.
+func (h *ModelPlazaHandler) UpsertReferencePrice(c *gin.Context) {
+	var req updateModelPlazaReferencePriceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid model plaza reference price")
+		return
+	}
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+	price := &service.ModelPlazaReferencePrice{
+		Platform:    req.Platform,
+		ModelName:   req.ModelName,
+		Pricing:     req.Pricing,
+		SourceLabel: req.SourceLabel,
+		SourceURL:   req.SourceURL,
+		Notes:       req.Notes,
+	}
+	if err := h.plazaService.UpsertReferencePrice(c.Request.Context(), price, subject.UserID); err != nil {
+		if errors.Is(err, service.ErrInvalidModelPlazaReferencePrice) {
+			response.Error(c, 400, err.Error())
+			return
+		}
+		slog.Error("save model plaza reference price failed", "platform", req.Platform, "model", req.ModelName, "error", err)
+		response.Error(c, 500, "Failed to save model plaza reference price")
+		return
+	}
+	response.Success(c, price)
+}
+
+func (h *ModelPlazaHandler) ImportReferencePrices(c *gin.Context) {
+	var req importModelPlazaReferencePricesRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Prices) == 0 || len(req.Prices) > 10000 {
+		response.BadRequest(c, "Invalid model plaza reference price import")
+		return
+	}
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+	prices := make([]service.ModelPlazaReferencePrice, 0, len(req.Prices))
+	for _, item := range req.Prices {
+		prices = append(prices, service.ModelPlazaReferencePrice{
+			Platform:    item.Platform,
+			ModelName:   item.ModelName,
+			Pricing:     item.Pricing,
+			SourceLabel: item.SourceLabel,
+			SourceURL:   item.SourceURL,
+			Notes:       item.Notes,
+		})
+	}
+	if err := h.plazaService.ImportReferencePrices(c.Request.Context(), prices, subject.UserID); err != nil {
+		if errors.Is(err, service.ErrInvalidModelPlazaReferencePrice) {
+			response.Error(c, 400, err.Error())
+			return
+		}
+		slog.Error("import model plaza reference prices failed", "count", len(prices), "error", err)
+		response.Error(c, 500, "Failed to import model plaza reference prices")
+		return
+	}
+	response.Success(c, gin.H{"imported_count": len(prices)})
+}
+
+// DeleteReferencePrice removes a manual reference price by its database ID.
+func (h *ModelPlazaHandler) DeleteReferencePrice(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid reference price ID")
+		return
+	}
+	if err := h.plazaService.DeleteReferencePrice(c.Request.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			response.NotFound(c, "Reference price not found")
+			return
+		}
+		slog.Error("delete model plaza reference price failed", "id", id, "error", err)
+		response.Error(c, 500, "Failed to delete model plaza reference price")
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}
+
+func (h *ModelPlazaHandler) DeleteReferencePrices(c *gin.Context) {
+	var req deleteModelPlazaReferencePricesRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 || len(req.IDs) > 1000 {
+		response.BadRequest(c, "Select between 1 and 1000 reference prices")
+		return
+	}
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+	deleted, err := h.plazaService.DeleteReferencePrices(c.Request.Context(), req.IDs)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidModelPlazaReferencePrice) {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		slog.Error("bulk delete model plaza reference prices failed", "count", len(req.IDs), "error", err)
+		response.Error(c, 500, "Failed to delete model plaza reference prices")
+		return
+	}
+	response.Success(c, gin.H{"deleted_count": deleted})
 }
 
 // modelPlazaGroup 广场分组条目（白名单字段）。
@@ -206,6 +360,7 @@ func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) mo
 			Platform:         m.Platform,
 			Pricing:          toUserPricing(m.Pricing),
 			OfficialPricing:  toModelPlazaOfficialPricing(m.OfficialPricing),
+			ReferencePricing: toModelPlazaReferencePricing(m.ReferencePricing),
 			LongContextBasis: string(m.LongContextBasis),
 			TimePricing:      toModelPlazaTimePricing(m.TimePricing),
 		})
@@ -233,6 +388,19 @@ func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) mo
 		dto.UserRateMultiplier = &rate
 	}
 	return dto
+}
+
+func toModelPlazaReferencePricing(p *service.PlazaReferencePrice) *modelPlazaReferencePricing {
+	if p == nil {
+		return nil
+	}
+	return &modelPlazaReferencePricing{
+		Pricing:     p.Pricing,
+		SourceLabel: p.SourceLabel,
+		SourceURL:   p.SourceURL,
+		Notes:       p.Notes,
+		UpdatedAt:   p.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 // toModelPlazaTimePricing 转换分时倍率；nil 透传（JSON 省略）。

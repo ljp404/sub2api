@@ -178,6 +178,7 @@
 
       <template v-if="activeTab === 'usage'">
         <UsageTable
+          user-view
           :data="usageLogs"
           :loading="loading"
           :columns="visibleColumns"
@@ -405,6 +406,8 @@ const billingModeOptions = computed<SelectOption[]>(() => [
   { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
   { value: 'image', label: t('admin.usage.billingModeImage') },
   { value: 'video', label: t('admin.usage.billingModeVideo') },
+  { value: 'parameter', label: t('admin.channels.billingMode.parameter') },
+  { value: 'video_token', label: t('admin.channels.billingMode.videoToken') },
 ])
 
 const apiKeys = ref<ApiKey[]>([])

@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminGroup } from '@/types'
 import GroupsView from '@/views/admin/GroupsView.vue'
 import { adminAPI } from '@/api/admin'
+import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
+import type { ChannelModelPricing } from '@/api/admin/channels'
+import { supplierImagePricing } from '@/components/admin/channel/parameterPricing'
+import { supplierVideoTokenPricing } from '@/components/admin/channel/videoTokenPricing'
 
 const {
   listGroups,
@@ -382,6 +386,56 @@ describe('GroupsView duplicate action', () => {
       model_pricing: [expect.objectContaining({ reasoning_effort_multipliers: null })],
     }))
     wrapper.unmount()
+  })
+
+  it.each(['openai', 'composite'] as const)('round-trips image and video pricing in a %s group', async platform => {
+    const image = supplierImagePricing()
+    const video = supplierVideoTokenPricing()
+    const rule = (models: string[], billing_mode: ChannelModelPricing['billing_mode']): ChannelModelPricing => ({
+      platform: 'openai', models, billing_mode,
+      input_price: null, output_price: null, cache_write_price: null, cache_read_price: null,
+      image_input_price: null, image_output_price: null, per_request_price: null, intervals: [],
+    })
+    const group = {
+      ...sourceGroup, platform,
+      model_pricing: [
+        { ...rule(['gpt-image-2.5-flare'], 'parameter'), parameter_pricing: image },
+        { ...rule(['seedance-2.0'], 'video_token'), video_token_pricing: video },
+        { ...rule(['claude-*'], 'token'), platform: 'anthropic' },
+      ],
+    }
+    listGroups.mockResolvedValue({ items: [group], total: 1, page: 1, page_size: 20, pages: 1 })
+    updateGroup.mockResolvedValue(group)
+    const wrapper = mountView()
+    await flushPromises()
+    const editButton = () => wrapper.findAll('button').find(button => button.text() === 'common.edit')!
+    await editButton().trigger('click')
+    await flushPromises()
+    const cards = wrapper.findAllComponents(PricingEntryCard)
+    expect(cards).toHaveLength(3)
+    expect(cards[0].props('enableParameterPricing')).toBe(true)
+    expect(cards[0].props('entry').parameter_pricing).toEqual(image)
+    expect(cards[1].props('entry').video_token_pricing).toEqual(video)
+    const changedImage = { ...image, base_price: '0.123' }
+    cards[0].vm.$emit('update', { ...cards[0].props('entry'), parameter_pricing: changedImage })
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+    const saved = updateGroup.mock.calls[0][1].model_pricing
+    expect(saved).toEqual([
+      expect.objectContaining({ platform: 'openai', billing_mode: 'parameter', parameter_pricing: changedImage, video_token_pricing: null }),
+      expect.objectContaining({ platform: 'openai', billing_mode: 'video_token', video_token_pricing: video, parameter_pricing: null }),
+      expect.objectContaining({ platform: platform === 'composite' ? 'anthropic' : 'openai', billing_mode: 'token' }),
+    ])
+    listGroups.mockResolvedValue({ items: [{ ...group, model_pricing: saved }], total: 1, page: 1, page_size: 20, pages: 1 })
+    wrapper.unmount()
+    const reopened = mountView()
+    await flushPromises()
+    await reopened.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
+    await flushPromises()
+    const reopenedCards = reopened.findAllComponents(PricingEntryCard)
+    expect(reopenedCards[0].props('entry').parameter_pricing).toEqual(changedImage)
+    expect(reopenedCards[1].props('entry').video_token_pricing).toEqual(video)
+    reopened.unmount()
   })
 
   it('updates manifest controls immediately and submits the displayed selection', async () => {

@@ -209,6 +209,9 @@ type CostBreakdown struct {
 	ActualCost                float64 // 应用倍率后的实际费用
 	BillingMode               string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
 	LongContextBillingApplied bool
+	ParameterPricing          *ParameterPricingSnapshot
+	VideoTokenPricing         *VideoTokenPricingSnapshot
+	VideoTaskPricing          *VideoTaskPricingSnapshot
 }
 
 func applyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
@@ -1589,6 +1592,10 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 	var breakdown *CostBreakdown
 	var err error
 	switch resolved.Mode {
+	case BillingModeVideoToken:
+		return nil, fmt.Errorf("video token pricing requires validated video measurements")
+	case BillingModeParameter:
+		return nil, fmt.Errorf("parameter pricing requires a validated image request")
 	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
 		breakdown, err = s.calculatePerRequestCost(resolved, input)
 		if err == nil && resolved.channelPricing != nil {

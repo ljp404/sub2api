@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +26,12 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	adminService   service.AdminService
 	cleanupService *service.UsageCleanupService
+	imageHoldRepo  service.ImageParameterHoldAdminRepository
+	billingCache   userBalanceCacheInvalidator
+}
+
+type userBalanceCacheInvalidator interface {
+	InvalidateUserBalance(context.Context, int64) error
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -42,7 +49,91 @@ func NewUsageHandler(
 	}
 }
 
+func (h *UsageHandler) SetImageParameterHoldAdminRepository(repo service.UsageBillingRepository, billingCache userBalanceCacheInvalidator) {
+	if adminRepo, ok := repo.(service.ImageParameterHoldAdminRepository); ok {
+		h.imageHoldRepo = adminRepo
+	}
+	h.billingCache = billingCache
+}
+
+type imageParameterHoldReleaseRequest struct {
+	Reason string `json:"reason" binding:"required"`
+}
+
+func (h *UsageHandler) ListUncertainImageHolds(c *gin.Context) {
+	if h.imageHoldRepo == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Image hold administration unavailable")
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	holds, total, err := h.imageHoldRepo.ListUncertainImageParameterHolds(
+		c.Request.Context(), pageSize, (page-1)*pageSize,
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, holds, total, page, pageSize)
+}
+
+func (h *UsageHandler) ReleaseUncertainImageHold(c *gin.Context) {
+	if h.imageHoldRepo == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Image hold administration unavailable")
+		return
+	}
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "Unauthorized")
+		return
+	}
+	id := strings.TrimSpace(c.Param("id"))
+	var req imageParameterHoldReleaseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Release reason is required")
+		return
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" || len(req.Reason) > 1000 {
+		response.BadRequest(c, "Release reason must contain 1 to 1000 characters")
+		return
+	}
+	userID, err := h.imageHoldRepo.ReleaseUncertainImageParameterHold(c.Request.Context(), id, subject.UserID, req.Reason)
+	if err != nil {
+		if errors.Is(err, service.ErrImageParameterHoldNotUncertain) ||
+			errors.Is(err, service.ErrImageParameterFrozenBalanceInconsistent) {
+			response.Error(c, http.StatusConflict, err.Error())
+			return
+		}
+		response.ErrorFrom(c, err)
+		return
+	}
+	if h.billingCache != nil {
+		_ = h.billingCache.InvalidateUserBalance(c.Request.Context(), userID)
+	}
+	if h.apiKeyService != nil {
+		h.apiKeyService.InvalidateAuthCacheByUserID(c.Request.Context(), userID)
+	}
+	response.Success(c, gin.H{"id": id, "state": "released"})
+}
+
 // CreateUsageCleanupTaskRequest represents cleanup task creation request
+func (h *UsageHandler) GetByID(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid usage ID")
+		return
+	}
+	log, err := h.usageService.GetByID(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.UsageLogFromServiceAdmin(log))
+}
+
 type CreateUsageCleanupTaskRequest struct {
 	StartDate   string  `json:"start_date"`
 	EndDate     string  `json:"end_date"`

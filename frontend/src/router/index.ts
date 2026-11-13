@@ -479,6 +479,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/channels/reference-prices',
+    name: 'AdminModelPlazaReferencePrices',
+    component: () => import('@/views/admin/ModelPlazaReferencePricesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Model Plaza Reference Prices',
+      titleKey: 'admin.channels.referencePrices.title',
+      descriptionKey: 'admin.channels.referencePrices.description'
+    }
+  },
+  {
     path: '/admin/channels/monitor',
     name: 'AdminChannelMonitor',
     component: () => import('@/views/admin/ChannelMonitorView.vue'),
@@ -633,6 +645,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Usage Records',
       titleKey: 'admin.usage.title',
       descriptionKey: 'admin.usage.description'
+    }
+  },
+  {
+    path: '/admin/usage/image-holds',
+    name: 'AdminImageHoldReview',
+    component: () => import('@/views/admin/ImageHoldReviewView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Image Hold Review',
+      titleKey: 'admin.usage.imageHolds.title',
+      descriptionKey: 'admin.usage.imageHolds.description'
     }
   },
   {

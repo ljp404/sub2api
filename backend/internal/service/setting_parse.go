@@ -74,6 +74,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyTableDefaultPageSize:                      "20",
 		SettingKeyTablePageSizeOptions:                      "[10,20,50,100]",
 		SettingKeyCustomMenuItems:                           "[]",
+		SettingKeyDrillFactoryURL:                           "",
+		SettingKeyChannelGatewayURL:                         "",
 		SettingKeyCustomEndpoints:                           "[]",
 		SettingKeyWeChatConnectEnabled:                      "false",
 		SettingKeyWeChatConnectAppID:                        "",
@@ -371,6 +373,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		PurchaseSubscriptionEnabled:            settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:                strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		CustomMenuItems:                        settings[SettingKeyCustomMenuItems],
+		DrillFactoryURL:                        strings.TrimSpace(settings[SettingKeyDrillFactoryURL]),
+		ChannelGatewayURL:                      strings.TrimSpace(settings[SettingKeyChannelGatewayURL]),
 		CustomEndpoints:                        settings[SettingKeyCustomEndpoints],
 		BackendModeEnabled:                     settings[SettingKeyBackendModeEnabled] == "true",
 	}

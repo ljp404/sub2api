@@ -39,6 +39,9 @@ export interface ChannelTimePricing {
 }
 
 export interface ChannelModelPricing {
+  video_token_pricing?: VideoTokenPricing | null
+  video_task_pricing?: VideoTaskPricing | null
+  parameter_pricing?: ParameterPricing | null
   id?: number
   platform: string
   models: string[]
@@ -56,6 +59,86 @@ export interface ChannelModelPricing {
   per_request_price: number | null
   intervals: PricingInterval[]
   time_pricing: ChannelTimePricing | null
+}
+
+export interface VideoTaskPricing {
+  version: 1
+  currency: 'USD' | 'CNY'
+  cny_per_usd?: string
+  price_480p_per_second: string
+  price_768p_per_second: string
+  upgrade_2k_per_second: string
+  prompt_polish_price_per_call: string
+  prompt_polish_default_enabled: boolean
+}
+
+export interface ParameterPricing {
+  version: 1
+  unit: 'image'
+  base_price: string
+  factors: { key: string; default?: string; values: Record<string, string> }[]
+}
+
+export interface VideoTokenPricing {
+  version: 1
+  fps: 24
+  divisor: 1024
+  adaptive_seconds: 15
+  max_input_seconds: number
+  tiers: Record<string, {
+    without_video: string
+    with_video: string
+    sizes: Record<string, { width: number; height: number }>
+  }>
+}
+
+export interface VideoTokenPricingInput {
+  tier: string
+  width: number
+  height: number
+  output_seconds: string
+  input_seconds: string
+  has_video: boolean
+  multiplier: string
+}
+
+export interface VideoTokenPricingSnapshot {
+  rule_hash: string
+  rule: VideoTokenPricing
+  input: VideoTokenPricingInput
+  billed_input_seconds: string
+  tokens: number
+  token_source?: 'formula' | 'upstream'
+  price_per_million: string
+  total_cost: string
+  actual_cost: string
+  hold_id?: string
+}
+
+export async function previewVideoTokenPricing(rule: VideoTokenPricing, input: VideoTokenPricingInput): Promise<VideoTokenPricingSnapshot> {
+  const { data } = await apiClient.post<VideoTokenPricingSnapshot>('/admin/channels/pricing/video-token-preview', { rule, input })
+  return data
+}
+
+export interface ParameterPricingInput {
+  dimensions: Record<string, string>
+  quantity: number
+  multiplier: string
+}
+
+export interface ParameterPricingSnapshot {
+  rule_hash: string
+  rule: ParameterPricing
+  input: ParameterPricingInput
+  matched_factors: Record<string, string>
+  unit_price: string
+  total_cost: string
+  actual_cost: string
+}
+
+export async function previewParameterPricing(rule: ParameterPricing, input: ParameterPricingInput): Promise<ParameterPricingSnapshot> {
+  const { data } = await apiClient.post<ParameterPricingSnapshot>('/admin/channels/pricing/parameter-preview', { rule, input })
+  return data
 }
 
 export interface AccountStatsPricingRule {

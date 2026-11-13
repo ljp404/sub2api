@@ -21,7 +21,7 @@ func seedanceTestAccount() *Account {
 }
 
 func TestSeedanceNativeForwarding(t *testing.T) {
-	body := []byte(`{"model":"video","content":[{"type":"text","text":"waves"},{"type":"image_url","image_url":{"url":"https://example.com/first.png"},"role":"first_frame"},{"type":"audio_url","audio_url":{"url":"https://example.com/audio.mp3"}}],"duration":-1,"generate_audio":true,"future_field":{"keep":true}}`)
+	body := []byte(`{"model":"video","content":[{"type":"text","text":"waves"},{"type":"image_url","image_url":{"url":"https://example.com/first.png"},"role":"first_frame"},{"type":"audio_url","audio_url":{"url":"https://example.com/audio.mp3"}}],"duration":-1,"resolution":"720P","generate_audio":true,"future_field":{"keep":true}}`)
 	upstream := &grokMediaContentUpstreamStub{response: grokMediaContentStatusResponse(`{"id":"task-1"}`)}
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
 	c, w := grokMediaContentTestContext(http.MethodPost, "/api/v3/contents/generations/tasks", nil)
@@ -37,6 +37,7 @@ func TestSeedanceNativeForwarding(t *testing.T) {
 	forwarded, err := io.ReadAll(upstream.request.Body)
 	require.NoError(t, err)
 	require.Equal(t, "ep-seedance", gjson.GetBytes(forwarded, "model").String())
+	require.Equal(t, "720p", gjson.GetBytes(forwarded, "resolution").String())
 	for _, field := range []string{"content", "duration", "generate_audio", "future_field"} {
 		require.Equal(t, gjson.GetBytes(body, field).Raw, gjson.GetBytes(forwarded, field).Raw)
 	}

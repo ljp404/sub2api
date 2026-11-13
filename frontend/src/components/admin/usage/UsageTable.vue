@@ -105,14 +105,21 @@
         </template>
 
         <template #cell-endpoint="{ row }">
-          <div class="max-w-[320px] space-y-1 text-xs">
-            <div class="break-all text-gray-700 dark:text-gray-300">
+          <div class="max-w-[260px] space-y-1 text-xs">
+            <div
+              class="truncate text-gray-700 dark:text-gray-300"
+              :title="row.inbound_endpoint?.trim() || '-'"
+            >
               <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.inbound') }}:</span>
-              <span class="ml-1">{{ row.inbound_endpoint?.trim() || '-' }}</span>
+              <span class="ml-1">{{ formatEndpointForDisplay(row.inbound_endpoint) }}</span>
             </div>
-            <div v-if="showUpstreamEndpoint" class="break-all text-gray-700 dark:text-gray-300">
+            <div
+              v-if="showUpstreamEndpoint"
+              class="truncate text-gray-700 dark:text-gray-300"
+              :title="row.upstream_endpoint?.trim() || '-'"
+            >
               <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.upstream') }}:</span>
-              <span class="ml-1">{{ row.upstream_endpoint?.trim() || '-' }}</span>
+              <span class="ml-1">{{ formatEndpointForDisplay(row.upstream_endpoint) }}</span>
             </div>
           </div>
         </template>
@@ -400,17 +407,30 @@
   <Teleport to="body">
     <div
       v-if="tooltipVisible"
+      ref="costTooltipElement"
       class="fixed z-[9999] pointer-events-none -translate-y-1/2"
       :style="{
         left: tooltipPosition.x + 'px',
         top: tooltipPosition.y + 'px'
       }"
     >
-      <div class="whitespace-nowrap rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800">
+      <div class="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
+        :class="tooltipData?.billing_mode === 'parameter' || tooltipData?.billing_mode === 'video_token' ? 'w-80 max-w-[calc(100vw-16px)] whitespace-normal' : 'whitespace-nowrap'">
         <div class="space-y-1.5">
           <!-- Cost Breakdown -->
           <div class="mb-2 border-b border-gray-700 pb-1.5">
             <div class="text-xs font-semibold text-gray-300 mb-1">{{ t('usage.costDetails') }}</div>
+            <div v-if="tooltipData?.video_token_pricing" class="max-w-sm space-y-1 break-words border-b border-gray-600 pb-2 text-xs text-gray-200">
+              <div>{{ t(tooltipData.video_token_pricing.token_source === 'upstream' ? 'admin.channels.videoToken.upstreamTokens' : 'admin.channels.videoToken.formula') }}</div>
+              <div v-if="tooltipData.video_token_pricing.token_source !== 'upstream'">{{ tooltipData.video_token_pricing.input.width }} × {{ tooltipData.video_token_pricing.input.height }} · {{ tooltipData.video_token_pricing.input.output_seconds }}s + {{ tooltipData.video_token_pricing.billed_input_seconds }}s</div>
+              <div>{{ tooltipData.video_token_pricing.tokens.toLocaleString() }} Token × ${{ tooltipData.video_token_pricing.price_per_million }} / 1,000,000 × {{ tooltipData.video_token_pricing.input.multiplier }} = ${{ tooltipData.video_token_pricing.actual_cost }}</div>
+              <div class="text-gray-400">{{ tooltipData.video_token_pricing.rule_hash.slice(0, 16) }}</div>
+            </div>
+            <div v-if="tooltipData?.parameter_pricing" class="max-w-sm space-y-1 break-words border-b border-gray-600 pb-2 text-xs text-gray-200">
+              <div>${{ tooltipData.parameter_pricing.rule.base_price }} × {{ Object.values(tooltipData.parameter_pricing.matched_factors).join(' × ') || '1' }} × {{ tooltipData.parameter_pricing.input.quantity }} × {{ tooltipData.parameter_pricing.input.multiplier }} = ${{ tooltipData.parameter_pricing.actual_cost }}</div>
+              <div v-for="(value, key) in tooltipData.parameter_pricing.input.dimensions" :key="key">{{ key }}: {{ value }} (×{{ tooltipData.parameter_pricing.matched_factors[key] }})</div>
+              <div class="text-gray-400">{{ tooltipData.parameter_pricing.rule_hash.slice(0, 16) }}</div>
+            </div>
             <div v-if="tooltipData && tooltipData.input_cost > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.inputCost') }}</span>
               <span class="font-medium text-white">${{ tooltipData.input_cost.toFixed(8) }}</span>
@@ -528,14 +548,14 @@
             </div>
           </template>
         </div>
-        <div class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"></div>
+        <div v-if="tooltipData?.billing_mode !== 'parameter' && tooltipData?.billing_mode !== 'video_token'" class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"></div>
       </div>
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
@@ -586,6 +606,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { apiClient } from '@/api/client'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
 import type { AdminUsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
@@ -601,6 +622,7 @@ interface Props {
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
+  userView?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -623,6 +645,14 @@ const copiedRequestId = ref<string | null>(null)
 const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint
 const ipGeoBatchLoading = ref(false)
+
+const formatEndpointForDisplay = (endpoint?: string | null): string => {
+  const value = endpoint?.trim() || '-'
+  return value.replace(
+    /(\/(?:query\/video_generation|contents\/generations\/tasks)\/)[^/?]+/gi,
+    '$1:task_id'
+  )
+}
 
 const showIpGeoToolbar = computed(() => props.columns.some((col) => col.key === 'ip_address'))
 
@@ -696,6 +726,14 @@ const copyUpstreamRequestId = (upstreamRequestId: string) =>
 const tooltipVisible = ref(false)
 const tooltipPosition = ref({ x: 0, y: 0 })
 const tooltipData = ref<AdminUsageLog | null>(null)
+const costTooltipElement = ref<HTMLElement | null>(null)
+
+function fitParameterTooltip() {
+  if (!['parameter', 'video_token'].includes(tooltipData.value?.billing_mode || '') || !costTooltipElement.value) return
+  const { width, height } = costTooltipElement.value.getBoundingClientRect()
+  tooltipPosition.value.x = Math.max(8, Math.min(tooltipPosition.value.x, window.innerWidth - width - 8))
+  tooltipPosition.value.y = Math.max(height / 2 + 8, Math.min(tooltipPosition.value.y, window.innerHeight - height / 2 - 8))
+}
 
 // Tooltip state - token
 const tokenTooltipVisible = ref(false)
@@ -746,6 +784,15 @@ const showTooltip = (event: MouseEvent, row: AdminUsageLog) => {
   tooltipPosition.value.x = rect.right + 8
   tooltipPosition.value.y = rect.top + rect.height / 2
   tooltipVisible.value = true
+  if (row.billing_mode === 'parameter' || row.billing_mode === 'video_token') {
+    void nextTick(fitParameterTooltip)
+    apiClient.get<AdminUsageLog>(`${props.userView ? '/usage' : '/admin/usage'}/${row.id}`).then(({ data }) => {
+      if (tooltipVisible.value && tooltipData.value?.id === row.id) {
+        tooltipData.value = { ...row, parameter_pricing: data.parameter_pricing, video_token_pricing: data.video_token_pricing }
+        void nextTick(fitParameterTooltip)
+      }
+    }).catch(() => { /* Existing totals remain visible when details cannot be loaded. */ })
+  }
 }
 
 const hideTooltip = () => {

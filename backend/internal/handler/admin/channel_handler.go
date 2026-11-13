@@ -28,6 +28,41 @@ func NewChannelHandler(channelService *service.ChannelService, billingService *s
 
 // --- Request / Response types ---
 
+// PreviewParameterPricing uses the settlement calculator without calling a model.
+func (h *ChannelHandler) PreviewParameterPricing(c *gin.Context) {
+	var req struct {
+		Rule  *service.ParameterPricing     `json:"rule" binding:"required"`
+		Input service.ParameterPricingInput `json:"input"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid parameter pricing request")
+		return
+	}
+	snapshot, err := service.CalculateParameterPricing(req.Rule, req.Input)
+	if err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("INVALID_PARAMETER_PRICING", err.Error()))
+		return
+	}
+	response.Success(c, snapshot)
+}
+
+func (h *ChannelHandler) PreviewVideoTokenPricing(c *gin.Context) {
+	var req struct {
+		Rule  *service.VideoTokenPricing     `json:"rule" binding:"required"`
+		Input service.VideoTokenPricingInput `json:"input"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid video token pricing request")
+		return
+	}
+	quote, err := service.CalculateVideoTokenPricing(req.Rule, req.Input)
+	if err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("INVALID_VIDEO_TOKEN_PRICING", err.Error()))
+		return
+	}
+	response.Success(c, quote)
+}
+
 type createChannelRequest struct {
 	Name                       string                           `json:"name" binding:"required,max=100"`
 	Description                string                           `json:"description"`
@@ -60,7 +95,7 @@ type updateChannelRequest struct {
 type channelModelPricingRequest struct {
 	Platform                   string                     `json:"platform" binding:"omitempty,max=50"`
 	Models                     []string                   `json:"models" binding:"required,min=1,max=100"`
-	BillingMode                string                     `json:"billing_mode" binding:"omitempty,oneof=token per_request image"`
+	BillingMode                string                     `json:"billing_mode" binding:"omitempty,oneof=token per_request image video parameter video_token"`
 	InputPrice                 *float64                   `json:"input_price" binding:"omitempty,min=0"`
 	OutputPrice                *float64                   `json:"output_price" binding:"omitempty,min=0"`
 	CacheWritePrice            *float64                   `json:"cache_write_price" binding:"omitempty,min=0"`
@@ -74,6 +109,9 @@ type channelModelPricingRequest struct {
 	PerRequestPrice            *float64                   `json:"per_request_price" binding:"omitempty,min=0"`
 	Intervals                  []pricingIntervalRequest   `json:"intervals"`
 	TimePricing                *channelTimePricingRequest `json:"time_pricing"`
+	ParameterPricing           *service.ParameterPricing  `json:"parameter_pricing"`
+	VideoTokenPricing          *service.VideoTokenPricing `json:"video_token_pricing"`
+	VideoTaskPricing           *service.VideoTaskPricing  `json:"video_task_pricing"`
 }
 
 type channelTimePricingRequest struct {
@@ -148,6 +186,9 @@ type channelModelPricingResponse struct {
 	PerRequestPrice            *float64                    `json:"per_request_price"`
 	Intervals                  []pricingIntervalResponse   `json:"intervals"`
 	TimePricing                *channelTimePricingResponse `json:"time_pricing"`
+	ParameterPricing           *service.ParameterPricing   `json:"parameter_pricing,omitempty"`
+	VideoTokenPricing          *service.VideoTokenPricing  `json:"video_token_pricing,omitempty"`
+	VideoTaskPricing           *service.VideoTaskPricing   `json:"video_task_pricing,omitempty"`
 }
 
 type channelTimePricingResponse struct {
@@ -278,6 +319,9 @@ func pricingToResponse(p *service.ChannelModelPricing) channelModelPricingRespon
 		PerRequestPrice:            p.PerRequestPrice,
 		Intervals:                  intervals,
 		TimePricing:                timePricingToResponse(p.TimePricing),
+		ParameterPricing:           service.CloneParameterPricing(p.ParameterPricing),
+		VideoTokenPricing:          service.CloneVideoTokenPricing(p.VideoTokenPricing),
+		VideoTaskPricing:           service.CloneVideoTaskPricing(p.VideoTaskPricing),
 	}
 }
 
@@ -376,6 +420,9 @@ func pricingRequestToService(reqs []channelModelPricingRequest, allowChannelMult
 			PerRequestPrice:            r.PerRequestPrice,
 			Intervals:                  intervals,
 			TimePricing:                timePricingRequestToService(r.TimePricing),
+			ParameterPricing:           service.CloneParameterPricing(r.ParameterPricing),
+			VideoTokenPricing:          service.CloneVideoTokenPricing(r.VideoTokenPricing),
+			VideoTaskPricing:           service.CloneVideoTaskPricing(r.VideoTaskPricing),
 		})
 	}
 	return result
@@ -662,4 +709,75 @@ func (h *ChannelHandler) SyncPricingModels(c *gin.Context) {
 
 	models := h.pricingService.ListModelNamesByProvider(provider)
 	response.Success(c, gin.H{"models": models})
+}
+
+type pricingCatalogModel struct {
+	Platform  string                            `json:"platform"`
+	ModelName string                            `json:"model_name"`
+	Pricing   service.ModelPlazaReferencePricing `json:"pricing"`
+}
+
+// ListPricingCatalog returns all loaded catalog entries suitable for importing
+// as display-only model plaza reference prices.
+func (h *ChannelHandler) ListPricingCatalog(c *gin.Context) {
+	platformFilter := strings.ToLower(strings.TrimSpace(c.Query("platform")))
+	query := strings.ToLower(strings.TrimSpace(c.Query("q")))
+	entries := h.pricingService.ListPricingCatalog()
+	models := make([]pricingCatalogModel, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+
+	for _, entry := range entries {
+		pricing := service.ModelPlazaReferencePricing{
+			InputPrice:        catalogPricePtr(entry.Pricing.InputCostPerToken),
+			OutputPrice:       catalogPricePtr(entry.Pricing.OutputCostPerToken),
+			CacheWritePrice:   catalogPricePtr(entry.Pricing.CacheCreationInputTokenCost),
+			CacheWrite1hPrice: catalogPricePtr(entry.Pricing.CacheCreationInputTokenCostAbove1hr),
+			CacheReadPrice:    catalogPricePtr(entry.Pricing.CacheReadInputTokenCost),
+			ImageInputPrice:   catalogPricePtr(entry.Pricing.InputCostPerImageToken),
+			ImageOutputPrice:  catalogPricePtr(entry.Pricing.OutputCostPerImageToken),
+			PerRequestPrice:   catalogPricePtr(entry.Pricing.OutputCostPerImage),
+		}
+		if !referencePricingHasAnyValue(pricing) {
+			continue
+		}
+
+		for _, platform := range domain.Platforms() {
+			if !strings.EqualFold(platform.LiteLLMProvider, entry.Provider) {
+				continue
+			}
+			if platformFilter != "" && !strings.EqualFold(platform.ID, platformFilter) {
+				continue
+			}
+			if query != "" && !strings.Contains(strings.ToLower(entry.ModelName), query) &&
+				!strings.Contains(strings.ToLower(platform.ID), query) &&
+				!strings.Contains(strings.ToLower(platform.DisplayName), query) {
+				continue
+			}
+			key := strings.ToLower(platform.ID + "::" + entry.ModelName)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			models = append(models, pricingCatalogModel{
+				Platform:  platform.ID,
+				ModelName: entry.ModelName,
+				Pricing:   pricing,
+			})
+		}
+	}
+	response.Success(c, gin.H{"models": models})
+}
+
+func catalogPricePtr(value float64) *float64 {
+	if value <= 0 {
+		return nil
+	}
+	return &value
+}
+
+func referencePricingHasAnyValue(pricing service.ModelPlazaReferencePricing) bool {
+	return pricing.InputPrice != nil || pricing.OutputPrice != nil ||
+		pricing.CacheWritePrice != nil || pricing.CacheWrite1hPrice != nil ||
+		pricing.CacheReadPrice != nil || pricing.ImageInputPrice != nil ||
+		pricing.ImageOutputPrice != nil || pricing.PerRequestPrice != nil
 }

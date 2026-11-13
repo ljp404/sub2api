@@ -998,7 +998,7 @@ func (s *GatewayService) needsUpstreamChannelRestrictionCheck(ctx context.Contex
 		slog.Warn("failed to check channel upstream restriction", "group_id", *groupID, "error", err)
 		return false
 	}
-	if ch == nil || !ch.RestrictModels {
+	if ch == nil || (!ch.RestrictModels && !channelHasParameterPricing(ch)) {
 		return false
 	}
 	return ch.BillingModelSource == BillingModelSourceUpstream

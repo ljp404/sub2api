@@ -387,6 +387,8 @@ const (
 	SettingKeyTableDefaultPageSize        = "table_default_page_size"       // 表格默认每页条数
 	SettingKeyTablePageSizeOptions        = "table_page_size_options"       // 表格可选每页条数（JSON 数组）
 	SettingKeyCustomMenuItems             = "custom_menu_items"             // 自定义菜单项（JSON 数组）
+	SettingKeyDrillFactoryURL             = "drill_factory_url"             // 演练厂外部入口
+	SettingKeyChannelGatewayURL           = "channel_gateway_url"           // 管理员渠道网关外部入口
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 
 	// 默认配置

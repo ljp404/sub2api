@@ -16,12 +16,14 @@ const (
 	BillingModePerRequest BillingMode = "per_request" // 按次计费（支持上下文窗口分层）
 	BillingModeImage      BillingMode = "image"       // 图片计费（当前按次，预留 token 计费）
 	BillingModeVideo      BillingMode = "video"       // 视频生成计费（按视频生成次数）
+	BillingModeParameter  BillingMode = "parameter"
+	BillingModeVideoToken BillingMode = "video_token"
 )
 
 // IsValid 检查 BillingMode 是否为合法值
 func (m BillingMode) IsValid() bool {
 	switch m {
-	case BillingModeToken, BillingModePerRequest, BillingModeImage, BillingModeVideo, "":
+	case BillingModeToken, BillingModePerRequest, BillingModeImage, BillingModeVideo, BillingModeParameter, BillingModeVideoToken, "":
 		return true
 	}
 	return false
@@ -30,7 +32,7 @@ func (m BillingMode) IsValid() bool {
 // IsValidUsageFilter 检查 BillingMode 是否可用于使用记录筛选。
 func (m BillingMode) IsValidUsageFilter() bool {
 	switch m {
-	case BillingModeToken, BillingModePerRequest, BillingModeImage, BillingModeVideo, "":
+	case BillingModeToken, BillingModePerRequest, BillingModeImage, BillingModeVideo, BillingModeParameter, BillingModeVideoToken, "":
 		return true
 	}
 	return false
@@ -106,6 +108,9 @@ type ChannelModelPricing struct {
 	PerRequestPrice            *float64            `json:"per_request_price"`
 	Intervals                  []PricingInterval   `json:"intervals"`
 	TimePricing                *ChannelTimePricing `json:"time_pricing,omitempty"`
+	ParameterPricing           *ParameterPricing   `json:"parameter_pricing,omitempty"`
+	VideoTokenPricing          *VideoTokenPricing  `json:"video_token_pricing,omitempty"`
+	VideoTaskPricing           *VideoTaskPricing   `json:"video_task_pricing,omitempty"`
 	CreatedAt                  time.Time           `json:"created_at,omitempty"`
 	UpdatedAt                  time.Time           `json:"updated_at,omitempty"`
 }
@@ -212,6 +217,9 @@ func (p *ChannelModelPricing) GetTierByLabel(label string) *PricingInterval {
 // Clone 返回 ChannelModelPricing 的拷贝（切片和映射独立，价格指针字段共享，调用方只读安全）
 func (p ChannelModelPricing) Clone() ChannelModelPricing {
 	cp := p
+	cp.ParameterPricing = CloneParameterPricing(p.ParameterPricing)
+	cp.VideoTokenPricing = CloneVideoTokenPricing(p.VideoTokenPricing)
+	cp.VideoTaskPricing = CloneVideoTaskPricing(p.VideoTaskPricing)
 	cp.ReasoningEffortMultipliers = maps.Clone(p.ReasoningEffortMultipliers)
 	if p.Models != nil {
 		cp.Models = make([]string, len(p.Models))

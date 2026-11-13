@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +17,7 @@ func newPlazaService(channels []Channel, groups []Group, pricing *PricingService
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return channels, nil },
 	}
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, pricing, nil, nil)
+	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, pricing, nil, nil, nil)
 }
 
 func plazaPricedChannel(id int64, name string, groupIDs []int64, platform string, models ...string) Channel {
@@ -55,6 +56,75 @@ func TestListPlazaGroups_GroupCentricAggregation(t *testing.T) {
 	// 组内模型按名称排序
 	require.Equal(t, "claude-opus", out[0].Models[0].Name)
 	require.Equal(t, "claude-sonnet", out[0].Models[1].Name)
+}
+
+type modelPlazaReferencePriceRepoStub struct {
+	prices []ModelPlazaReferencePrice
+	deletedIDs *[]int64
+}
+
+func (r modelPlazaReferencePriceRepoStub) ListModelPlazaReferencePrices(context.Context) ([]ModelPlazaReferencePrice, error) {
+	return r.prices, nil
+}
+
+func (r modelPlazaReferencePriceRepoStub) ListModelPlazaReferencePricesPage(context.Context, pagination.PaginationParams, string) ([]ModelPlazaReferencePrice, *pagination.PaginationResult, error) {
+	return r.prices, &pagination.PaginationResult{Total: int64(len(r.prices)), Page: 1, PageSize: 20, Pages: 1}, nil
+}
+
+func (modelPlazaReferencePriceRepoStub) UpsertModelPlazaReferencePrice(context.Context, *ModelPlazaReferencePrice) error {
+	return nil
+}
+
+func (modelPlazaReferencePriceRepoStub) DeleteModelPlazaReferencePrice(context.Context, int64) error {
+	return nil
+}
+
+func (r modelPlazaReferencePriceRepoStub) DeleteModelPlazaReferencePrices(_ context.Context, ids []int64) (int64, error) {
+	if r.deletedIDs != nil {
+		*r.deletedIDs = append(*r.deletedIDs, ids...)
+	}
+	return int64(len(ids)), nil
+}
+
+func TestDeleteReferencePricesDeduplicatesIDsAndRejectsInvalidIDs(t *testing.T) {
+	var deletedIDs []int64
+	repo := modelPlazaReferencePriceRepoStub{deletedIDs: &deletedIDs}
+	svc := NewModelPlazaService(nil, nil, nil, nil, nil, repo)
+
+	deleted, err := svc.DeleteReferencePrices(context.Background(), []int64{4, 4, 9})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), deleted)
+	require.Equal(t, []int64{4, 9}, deletedIDs)
+
+	_, err = svc.DeleteReferencePrices(context.Background(), []int64{0})
+	require.ErrorIs(t, err, ErrInvalidModelPlazaReferencePrice)
+	require.Equal(t, []int64{4, 9}, deletedIDs, "invalid ids must not reach repository")
+}
+
+func TestListPlazaGroups_ManualReferencePriceIsDisplayOnly(t *testing.T) {
+	channels := []Channel{plazaPricedChannel(1, "ch", []int64{10}, "minimax", "MiniMax-M2.7")}
+	groups := []Group{{ID: 10, Name: "g", Platform: "minimax", RateMultiplier: 1}}
+	manualPerRequest := 0.08
+	repo := modelPlazaReferencePriceRepoStub{prices: []ModelPlazaReferencePrice{{
+		Platform: "minimax", ModelName: "minimax-m2.7",
+		Pricing: ModelPlazaReferencePricing{PerRequestPrice: &manualPerRequest},
+		SourceLabel: "Supplier price list",
+	}}}
+	plaza := NewModelPlazaService(
+		&mockChannelRepository{listAllFn: func(context.Context) ([]Channel, error) { return channels, nil }},
+		&stubGroupRepoForAvailable{activeGroups: groups}, nil, nil, nil, repo,
+	)
+
+	result, err := plaza.ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Len(t, result[0].Models, 1)
+	model := result[0].Models[0]
+	require.NotNil(t, model.ReferencePricing)
+	require.Equal(t, "Supplier price list", model.ReferencePricing.SourceLabel)
+	require.InDelta(t, manualPerRequest, *model.ReferencePricing.Pricing.PerRequestPrice, 1e-12)
+	require.NotNil(t, model.Pricing)
+	require.Nil(t, model.Pricing.PerRequestPrice, "manual display reference must not change actual channel pricing")
 }
 
 func TestListPlazaGroups_Fable51HasNoImplicitReasoningMultiplier(t *testing.T) {
@@ -403,7 +473,7 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, sentinel },
 	}
-	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{}, nil, nil, nil)
+	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{}, nil, nil, nil, nil)
 	out, err := svc.ListGroups(context.Background())
 	require.Nil(t, out)
 	require.ErrorIs(t, err, sentinel)
@@ -411,7 +481,7 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	svc2 := NewModelPlazaService(
 		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, nil }},
 		&stubGroupRepoForAvailable{listActiveErr: sentinel},
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 	out2, err2 := svc2.ListGroups(context.Background())
 	require.Nil(t, out2)
@@ -428,7 +498,7 @@ func newPlazaServiceWithBilling(channels []Channel, groups []Group, groupPlatfor
 	}
 	cs := NewChannelService(repo, nil, nil, nil, nil)
 	bs := NewBillingService(&config.Config{}, catalog)
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, catalog, bs, NewModelPricingResolver(cs, bs))
+	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, catalog, bs, NewModelPricingResolver(cs, bs), nil)
 }
 
 func plazaModelsByName(models []PlazaModel) map[string]PlazaModel {
@@ -519,6 +589,92 @@ func TestListGroups_GroupTokenCardOverridesChannelPricing(t *testing.T) {
 	require.InDelta(t, 1e-6, *m.Pricing.InputPrice, 1e-15, "分组价卡优先于渠道平价")
 	require.InDelta(t, 15e-6, *m.Pricing.OutputPrice, 1e-15, "卡未配置的项回落目录价")
 	require.Empty(t, m.Pricing.Intervals)
+}
+
+func TestListGroups_GroupParameterPricingOverridesChannelPricing(t *testing.T) {
+	for _, platform := range []string{PlatformOpenAI, PlatformComposite} {
+		t.Run(platform, func(t *testing.T) {
+			channels := []Channel{{
+				ID: 1, Name: "ch", Status: StatusActive, GroupIDs: []int64{10},
+				ModelPricing: []ChannelModelPricing{{
+					Platform: PlatformOpenAI, Models: []string{"gpt-image-2.5-flare"},
+					BillingMode: BillingModeParameter,
+					ParameterPricing: &ParameterPricing{
+						BasePrice: "0.08",
+					},
+				}},
+			}}
+			groups := []Group{{
+				ID: 10, Name: "g", Platform: platform, RateMultiplier: 1,
+				ModelPricing: []ChannelModelPricing{{
+					Models:      []string{"gpt-image-2.5-flare"},
+					BillingMode: BillingModeParameter,
+					ParameterPricing: &ParameterPricing{
+						BasePrice: "0.03",
+					},
+				}},
+			}}
+
+			out, err := newPlazaService(channels, groups, nil).ListGroups(context.Background())
+
+			require.NoError(t, err)
+			require.Len(t, out, 1)
+			pricing := out[0].Models[0].Pricing
+			require.NotNil(t, pricing)
+			require.Equal(t, BillingModeParameter, pricing.BillingMode)
+			require.Equal(t, "0.03", pricing.ParameterPricing.BasePrice)
+		})
+	}
+}
+
+func TestListGroups_GroupVideoTokenPricingOverridesChannelPricing(t *testing.T) {
+	for _, platform := range []string{PlatformOpenAI, PlatformComposite} {
+		t.Run(platform, func(t *testing.T) {
+			channels := []Channel{{
+				ID: 1, Name: "ch", Status: StatusActive, GroupIDs: []int64{10},
+				ModelPricing: []ChannelModelPricing{{
+					Platform: PlatformOpenAI, Models: []string{"seedance-2.0"},
+					BillingMode: BillingModeVideoToken,
+					VideoTokenPricing: &VideoTokenPricing{
+						Version:         1,
+						FPS:             24,
+						Divisor:         1024,
+						AdaptiveSeconds: 15,
+						MaxInputSeconds: 120,
+						Tiers: map[string]VideoTokenPriceTier{
+							"standard": {WithoutVideo: "9", WithVideo: "12"},
+						},
+					},
+				}},
+			}}
+			groups := []Group{{
+				ID: 10, Name: "g", Platform: platform, RateMultiplier: 1,
+				ModelPricing: []ChannelModelPricing{{
+					Models:      []string{"seedance-2.0"},
+					BillingMode: BillingModeVideoToken,
+					VideoTokenPricing: &VideoTokenPricing{
+						Version:         1,
+						FPS:             24,
+						Divisor:         1024,
+						AdaptiveSeconds: 15,
+						MaxInputSeconds: 120,
+						Tiers: map[string]VideoTokenPriceTier{
+							"standard": {WithoutVideo: "7", WithVideo: "10"},
+						},
+					},
+				}},
+			}}
+
+			out, err := newPlazaService(channels, groups, nil).ListGroups(context.Background())
+
+			require.NoError(t, err)
+			require.Len(t, out, 1)
+			pricing := out[0].Models[0].Pricing
+			require.NotNil(t, pricing)
+			require.Equal(t, BillingModeVideoToken, pricing.BillingMode)
+			require.Equal(t, "7", pricing.VideoTokenPricing.Tiers["standard"].WithoutVideo)
+		})
+	}
 }
 
 func TestListGroups_ImageModelKeepsTierSynthesisWithBilling(t *testing.T) {

@@ -711,6 +711,9 @@ func TestEmbeddedFrontendBypassesBareAPIAliases(t *testing.T) {
 		"/contents/generations/tasks/task-123",
 		"/v3/contents/generations/tasks",
 		"/v3/contents/generations/tasks/task-123",
+		"/v2/video_generation",
+		"/v2/query/video_generation",
+		"/v2/query/video_generation/task-123",
 	} {
 		require.True(t, shouldBypassEmbeddedFrontend(path), "path=%s", path)
 	}
@@ -832,6 +835,8 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 			"/chat/completions",
 			"/models/gpt-5.5",
 			"/v3/contents/generations/tasks/task-123",
+			"/v2/video_generation",
+			"/v2/query/video_generation/task-123",
 		}
 
 		for _, path := range apiPaths {

@@ -1185,6 +1185,11 @@ func normalizeGroupModelPricing(platform string, pricing []ChannelModelPricing) 
 		if strings.TrimSpace(out[i].Platform) == "" {
 			out[i].Platform = platform
 		}
+		// Composite is a group container; media rules use the OpenAI/Ark billing chain.
+		if platform == PlatformComposite && out[i].Platform == PlatformComposite &&
+			(out[i].BillingMode == BillingModeParameter || out[i].BillingMode == BillingModeVideoToken) {
+			out[i].Platform = PlatformOpenAI
+		}
 		for j := range out[i].Models {
 			out[i].Models[j] = strings.TrimSpace(out[i].Models[j])
 		}

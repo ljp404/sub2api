@@ -6726,6 +6726,40 @@
               </p>
             </div>
             <div class="space-y-4 p-6">
+              <div class="border-b border-gray-100 pb-4 dark:border-dark-700">
+                <h3 class="font-medium text-gray-900 dark:text-white">
+                  {{ t("admin.settings.customMenu.drillFactoryTitle") }}
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.customMenu.drillFactoryDescription") }}
+                </p>
+                <label class="mb-1 mt-3 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {{ t("admin.settings.customMenu.drillFactoryUrl") }}
+                </label>
+                <input
+                  v-model="form.drill_factory_url"
+                  type="url"
+                  class="input font-mono text-sm"
+                  :placeholder="t('admin.settings.customMenu.drillFactoryUrlPlaceholder')"
+                  data-testid="drill-factory-url"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.customMenu.drillFactoryUrlHint") }}
+                </p>
+                <label class="mb-1 mt-4 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {{ t("admin.settings.customMenu.channelGatewayUrl") }}
+                </label>
+                <input
+                  v-model="form.channel_gateway_url"
+                  type="url"
+                  class="input font-mono text-sm"
+                  :placeholder="t('admin.settings.customMenu.channelGatewayUrlPlaceholder')"
+                  data-testid="channel-gateway-url"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.customMenu.channelGatewayUrlHint") }}
+                </p>
+              </div>
               <!-- Existing menu items -->
               <div
                 v-for="(item, index) in form.custom_menu_items"
@@ -9818,6 +9852,8 @@ const form = reactive<SettingsForm>({
     sort_order: number;
     hide_open_button?: boolean;
   }>,
+  drill_factory_url: "",
+  channel_gateway_url: "",
   custom_endpoints: [] as Array<{
     name: string;
     endpoint: string;
@@ -11487,6 +11523,8 @@ async function saveSettings() {
       table_default_page_size: form.table_default_page_size,
       table_page_size_options: form.table_page_size_options,
       custom_menu_items: form.custom_menu_items,
+      drill_factory_url: form.drill_factory_url,
+      channel_gateway_url: form.channel_gateway_url,
       custom_endpoints: form.custom_endpoints,
       frontend_url: form.frontend_url,
       smtp_host: form.smtp_host,

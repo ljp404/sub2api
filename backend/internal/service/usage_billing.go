@@ -21,6 +21,9 @@ type UsageBillingCommand struct {
 	APIKeyID           int64
 	RequestFingerprint string
 	RequestPayloadHash string
+	ParameterPricing   *ParameterPricingSnapshot
+	VideoTokenPricing  *VideoTokenPricingSnapshot
+	VideoTaskPricing   *VideoTaskPricingSnapshot
 
 	UserID              int64
 	AccountID           int64
@@ -136,6 +139,18 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 	)
 	if payloadHash := strings.TrimSpace(c.RequestPayloadHash); payloadHash != "" {
 		raw += "|" + payloadHash
+	}
+	if c.ParameterPricing != nil {
+		raw += "|parameter:" + c.ParameterPricing.RuleHash
+		if c.ParameterPricing.HoldID != "" {
+			raw += ":" + c.ParameterPricing.HoldID
+		}
+	}
+	if c.VideoTokenPricing != nil {
+		raw += "|video_token:" + c.VideoTokenPricing.RuleHash + ":" + c.VideoTokenPricing.HoldID
+	}
+	if c.VideoTaskPricing != nil {
+		raw += "|video_task:" + c.VideoTaskPricing.RuleHash + ":" + c.VideoTaskPricing.HoldID
 	}
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])

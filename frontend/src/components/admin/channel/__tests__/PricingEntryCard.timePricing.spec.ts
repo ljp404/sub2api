@@ -72,10 +72,94 @@ describe('PricingEntryCard time pricing visibility', () => {
     expect(wrapper.emitted('update')?.[0]?.[0]).toEqual({
       ...entry,
       billing_mode: 'image',
+      parameter_pricing: null,
+      video_token_pricing: null,
       intervals: [],
+      video_task_pricing: null,
       time_pricing: { timezone: 'Asia/Shanghai', weekdays_only: false, periods: [] },
     })
     expect(entry.time_pricing.periods).toHaveLength(1)
+  })
+})
+
+describe('PricingEntryCard video task pricing', () => {
+  it('offers the optional task-price editor without replacing legacy video pricing', async () => {
+    const entry = createEntry('video')
+    const wrapper = shallowMount(PricingEntryCard, {
+      props: { entry },
+    })
+
+    expect(wrapper.findComponent({ name: 'VideoTaskPricingEditor' }).exists()).toBe(false)
+    await wrapper.findAll('button')[1].trigger('click')
+
+    const enabled = wrapper.emitted('update')![0][0] as PricingFormEntry
+    expect(enabled.billing_mode).toBe('video')
+    expect(enabled.video_task_pricing).toMatchObject({
+      version: 1,
+      currency: 'CNY',
+      prompt_polish_default_enabled: true,
+    })
+    expect(enabled.per_request_price).toBe(entry.per_request_price)
+  })
+
+  it('renders the task-price editor when a rule is configured', () => {
+    const wrapper = shallowMount(PricingEntryCard, {
+      props: {
+        entry: {
+          ...createEntry('video'),
+          video_task_pricing: {
+            version: 1,
+            currency: 'CNY',
+            cny_per_usd: '7.2',
+            price_480p_per_second: '0.04',
+            price_768p_per_second: '0.10',
+            upgrade_2k_per_second: '0.15',
+            prompt_polish_price_per_call: '0.05',
+            prompt_polish_default_enabled: true,
+          },
+        },
+      },
+    })
+
+    expect(wrapper.findComponent({ name: 'VideoTaskPricingEditor' }).exists()).toBe(true)
+  })
+})
+
+describe('PricingEntryCard media pricing platforms', () => {
+  it.each(['openai', 'composite'])('offers both media rules for %s when enabled', platform => {
+    const wrapper = shallowMount(PricingEntryCard, {
+      props: { entry: createEntry(), platform, enableParameterPricing: true },
+    })
+    expect(wrapper.findComponent({ name: 'Select' }).props('options').map((option: { value: string }) => option.value))
+      .toEqual(['token', 'per_request', 'image', 'video', 'parameter', 'video_token'])
+    wrapper.unmount()
+  })
+
+  it.each([
+    { platform: 'composite', enabled: false },
+    { platform: 'anthropic', enabled: true },
+    { platform: 'gemini', enabled: true },
+  ])('keeps media rules unavailable for $platform with enabled=$enabled', ({ platform, enabled }) => {
+    const wrapper = shallowMount(PricingEntryCard, {
+      props: { entry: createEntry(), platform, enableParameterPricing: enabled },
+    })
+    expect(wrapper.findComponent({ name: 'Select' }).props('options').map((option: { value: string }) => option.value))
+      .toEqual(['token', 'per_request', 'image', 'video'])
+    wrapper.unmount()
+  })
+
+  it.each(['parameter', 'video_token'] as const)('initializes and reopens the %s editor for composite groups', async mode => {
+    const wrapper = shallowMount(PricingEntryCard, {
+      props: { entry: createEntry(), platform: 'composite', enableParameterPricing: true },
+    })
+    wrapper.findComponent({ name: 'Select' }).vm.$emit('update:modelValue', mode)
+    const updated = wrapper.emitted('update')![0][0] as PricingFormEntry
+    expect(updated.billing_mode).toBe(mode)
+    expect(updated[mode === 'parameter' ? 'parameter_pricing' : 'video_token_pricing']).toBeTruthy()
+    await wrapper.setProps({ entry: updated })
+    expect(wrapper.findComponent({ name: mode === 'parameter' ? 'ParameterPricingEditor' : 'VideoTokenPricingEditor' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'Select' }).props('modelValue')).toBe(mode)
+    wrapper.unmount()
   })
 })
 

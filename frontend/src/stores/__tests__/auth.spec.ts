@@ -60,6 +60,8 @@ describe('useAuthStore', () => {
   })
 
   afterEach(() => {
+    vi.clearAllTimers()
+    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
@@ -345,6 +347,51 @@ describe('useAuthStore', () => {
   // --- refreshUser ---
 
   describe('refreshUser', () => {
+    it('每五秒同步冻结和结算余额，退出后停止刷新', async () => {
+      mockLogin.mockResolvedValue(fakeAuthResponse)
+      mockLogout.mockResolvedValue(undefined)
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+      const store = useAuthStore()
+      await store.login({ email: 'test@example.com', password: '123456' })
+
+      mockGetCurrentUser.mockResolvedValue({
+        data: { ...fakeUser, balance: 99.6, frozen_balance: 0.4 },
+      })
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(store.user?.balance).toBe(99.6)
+      expect(store.user?.frozen_balance).toBe(0.4)
+
+      mockGetCurrentUser.mockResolvedValue({
+        data: { ...fakeUser, balance: 99.6, frozen_balance: 0 },
+      })
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(store.user?.frozen_balance).toBe(0)
+      expect(mockGetCurrentUser).toHaveBeenCalledTimes(2)
+
+      await store.logout()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockGetCurrentUser).toHaveBeenCalledTimes(2)
+    })
+
+    it('后台页面暂停轮询，慢请求不会重叠', async () => {
+      mockLogin.mockResolvedValue(fakeAuthResponse)
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      const store = useAuthStore()
+      await store.login({ email: 'test@example.com', password: '123456' })
+
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockGetCurrentUser).not.toHaveBeenCalled()
+      visibility.mockReturnValue('visible')
+      let complete!: (value: { data: typeof fakeUser }) => void
+      mockGetCurrentUser.mockImplementationOnce(
+        () => new Promise(resolve => { complete = resolve }),
+      )
+      await vi.advanceTimersByTimeAsync(15000)
+      expect(mockGetCurrentUser).toHaveBeenCalledTimes(1)
+      complete({ data: fakeUser })
+      await Promise.resolve()
+    })
+
     it('刷新用户数据并更新 localStorage', async () => {
       mockLogin.mockResolvedValue(fakeAuthResponse)
       const store = useAuthStore()

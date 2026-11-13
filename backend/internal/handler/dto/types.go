@@ -667,7 +667,10 @@ type UsageLog struct {
 	CacheTTLOverridden bool `json:"cache_ttl_overridden"`
 
 	// BillingMode 计费模式：token/image
-	BillingMode *string `json:"billing_mode,omitempty"`
+	BillingMode       *string                            `json:"billing_mode,omitempty"`
+	ParameterPricing  *service.ParameterPricingSnapshot  `json:"parameter_pricing,omitempty"`
+	VideoTokenPricing *service.VideoTokenPricingSnapshot `json:"video_token_pricing,omitempty"`
+	VideoTaskPricing  *service.VideoTaskPricingSnapshot  `json:"video_task_pricing,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 

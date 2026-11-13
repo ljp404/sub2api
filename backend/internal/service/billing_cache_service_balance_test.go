@@ -126,3 +126,20 @@ func TestSyncBalanceCacheAfterDeduction_QueuesDeductWhenBalanceStillEligible(t *
 		return cache.deductCalls.Load() == 1
 	}, 2*time.Second, 10*time.Millisecond)
 }
+
+func TestSyncBalanceCacheAfterDeduction_InvalidatesVideoTaskHold(t *testing.T) {
+	cache := &balanceEligibilityCacheStub{balance: 1}
+	cfg := &config.Config{}
+	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(svc.Stop)
+
+	syncBalanceCacheAfterDeduction(context.Background(), &postUsageBillingParams{
+		Cost: &CostBreakdown{
+			VideoTaskPricing: &VideoTaskPricingSnapshot{HoldID: "hold-1"},
+		},
+		User: &User{ID: 1},
+	}, &billingDeps{billingCacheService: svc}, &UsageBillingApplyResult{})
+
+	require.Equal(t, int64(1), cache.invalidateCalls.Load())
+	require.Equal(t, int64(0), cache.deductCalls.Load())
+}

@@ -47,11 +47,14 @@ func ProvideAdminHandlers(
 	affiliateHandler *admin.AffiliateHandler,
 	complianceHandler *admin.ComplianceHandler,
 	auditLogHandler *admin.AuditLogHandler,
+	usageBillingRepository service.UsageBillingRepository,
+	billingCache *service.BillingCacheService,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
 	claudeResetCredits *service.ClaudeResetCreditService,
 ) *AdminHandlers {
+	usageHandler.SetImageParameterHoldAdminRepository(usageBillingRepository, billingCache)
 	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
 	accountHandler.SetOllamaCloudUsageService(ollamaCloudUsage)
 	accountHandler.SetOpenCodeGoUsageService(opencodeGoUsage)

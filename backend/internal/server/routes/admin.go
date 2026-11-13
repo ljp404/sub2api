@@ -116,6 +116,7 @@ func RegisterAdminRoutes(
 
 		// 渠道管理
 		registerChannelRoutes(admin, h)
+		registerModelPlazaReferencePriceRoutes(admin, h)
 
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h, settingService)
@@ -708,12 +709,15 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	usage := admin.Group("/usage")
 	{
 		usage.GET("", h.Admin.Usage.List)
+		usage.GET("/:id", h.Admin.Usage.GetByID)
 		usage.GET("/stats", h.Admin.Usage.Stats)
 		usage.GET("/search-users", h.Admin.Usage.SearchUsers)
 		usage.GET("/search-api-keys", h.Admin.Usage.SearchAPIKeys)
 		usage.GET("/cleanup-tasks", h.Admin.Usage.ListCleanupTasks)
 		usage.POST("/cleanup-tasks", h.Admin.Usage.CreateCleanupTask)
 		usage.POST("/cleanup-tasks/:id/cancel", h.Admin.Usage.CancelCleanupTask)
+		usage.GET("/image-holds/uncertain", h.Admin.Usage.ListUncertainImageHolds)
+		usage.POST("/image-holds/:id/release", h.Admin.Usage.ReleaseUncertainImageHold)
 	}
 }
 
@@ -786,10 +790,24 @@ func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		channels.GET("", h.Admin.Channel.List)
 		channels.GET("/model-pricing", h.Admin.Channel.GetModelDefaultPricing)
 		channels.GET("/pricing/sync-models", h.Admin.Channel.SyncPricingModels)
+		channels.GET("/pricing/catalog", h.Admin.Channel.ListPricingCatalog)
+		channels.POST("/pricing/parameter-preview", h.Admin.Channel.PreviewParameterPricing)
+		channels.POST("/pricing/video-token-preview", h.Admin.Channel.PreviewVideoTokenPricing)
 		channels.GET("/:id", h.Admin.Channel.GetByID)
 		channels.POST("", h.Admin.Channel.Create)
 		channels.PUT("/:id", h.Admin.Channel.Update)
 		channels.DELETE("/:id", h.Admin.Channel.Delete)
+	}
+}
+
+func registerModelPlazaReferencePriceRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	prices := admin.Group("/model-plaza/reference-prices")
+	{
+		prices.GET("", h.ModelPlaza.ListReferencePrices)
+		prices.PUT("", h.ModelPlaza.UpsertReferencePrice)
+		prices.POST("/import", h.ModelPlaza.ImportReferencePrices)
+		prices.POST("/batch-delete", h.ModelPlaza.DeleteReferencePrices)
+		prices.DELETE("/:id", h.ModelPlaza.DeleteReferencePrice)
 	}
 }
 

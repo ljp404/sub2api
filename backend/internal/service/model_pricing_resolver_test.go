@@ -930,6 +930,66 @@ func TestResolve_GroupPricingOverridesChannel(t *testing.T) {
 	require.InDelta(t, 2e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 }
 
+func TestResolve_GroupParameterPricingOverridesChannel(t *testing.T) {
+	for _, platform := range []string{PlatformOpenAI, PlatformComposite} {
+		t.Run(platform, func(t *testing.T) {
+			r := newResolverWithChannel(t, []ChannelModelPricing{{
+				Platform: "openai", Models: []string{"gpt-image-2.5-flare"}, BillingMode: BillingModeParameter,
+				ParameterPricing: &ParameterPricing{
+					Version: 1, Unit: "image", BasePrice: "1",
+					Factors: []ParameterPricingFactor{{Key: "resolution", Values: map[string]string{"1k": "1"}}},
+				},
+			}})
+			group := &Group{ID: 100, Platform: platform, ModelPricing: []ChannelModelPricing{{
+				Platform: PlatformOpenAI, Models: []string{"gpt-image-2.5-flare"}, BillingMode: BillingModeParameter,
+				ParameterPricing: &ParameterPricing{
+					Version: 1, Unit: "image", BasePrice: "2",
+					Factors: []ParameterPricingFactor{{Key: "resolution", Values: map[string]string{"1k": "1"}}},
+				},
+			}}}
+
+			resolved := r.Resolve(context.Background(), PricingInput{
+				Model: "gpt-image-2.5-flare", GroupID: groupIDPtr(), Group: group,
+			})
+			require.Equal(t, PricingSourceGroup, resolved.Source)
+			require.Equal(t, BillingModeParameter, resolved.Mode)
+			require.NotNil(t, resolved.channelPricing)
+			require.Equal(t, "2", resolved.channelPricing.ParameterPricing.BasePrice)
+		})
+	}
+}
+
+func TestResolve_GroupVideoTokenPricingOverridesChannel(t *testing.T) {
+	for _, platform := range []string{PlatformOpenAI, PlatformComposite} {
+		t.Run(platform, func(t *testing.T) {
+			videoRule := func(price string) *VideoTokenPricing {
+				return &VideoTokenPricing{
+					Version: 1, FPS: 24, Divisor: 1024, AdaptiveSeconds: 15, MaxInputSeconds: 15,
+					Tiers: map[string]VideoTokenPriceTier{
+						"480p": {WithoutVideo: price, WithVideo: price, Sizes: map[string]VideoTokenGeometry{"16:9": {854, 480}}},
+					},
+				}
+			}
+			r := newResolverWithChannel(t, []ChannelModelPricing{{
+				Platform: PlatformOpenAI, Models: []string{"seedance-2.0"}, BillingMode: BillingModeVideoToken,
+				VideoTokenPricing: videoRule("7"),
+			}})
+			group := &Group{ID: 100, Platform: platform, ModelPricing: []ChannelModelPricing{{
+				Platform: PlatformOpenAI, Models: []string{"seedance-2.0"}, BillingMode: BillingModeVideoToken,
+				VideoTokenPricing: videoRule("5"),
+			}}}
+
+			resolved := r.Resolve(context.Background(), PricingInput{
+				Model: "seedance-2.0", GroupID: groupIDPtr(), Group: group,
+			})
+			require.Equal(t, PricingSourceGroup, resolved.Source)
+			require.Equal(t, BillingModeVideoToken, resolved.Mode)
+			require.NotNil(t, resolved.channelPricing)
+			require.Equal(t, "5", resolved.channelPricing.VideoTokenPricing.Tiers["480p"].WithoutVideo)
+		})
+	}
+}
+
 func TestResolve_GroupLongContextUsesPresetNotCustomIntervals(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
 	bs.fallbackPrices["claude-sonnet-4"].LongContextInputThreshold = 200000

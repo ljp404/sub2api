@@ -571,6 +571,19 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 	}
 
 	var cost float64
+	if resolved != nil && resolved.Mode == BillingModeVideoToken {
+		// This opt-in mode makes a DB-backed hold immediately before forwarding.
+		// Legacy per-second estimates would reserve an unrelated tariff.
+		return 0
+	}
+	if resolved != nil && resolved.Mode == BillingModeParameter {
+		// A negative sentinel tells the caller that Images will make an exact
+		// database hold after parameter validation. Do not also reserve in Redis.
+		if req.Kind == InflightEstimateImage {
+			return -1
+		}
+		return 0
+	}
 	perRequestMode := resolved != nil && (resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage || resolved.Mode == BillingModeVideo)
 	switch req.Kind {
 	case InflightEstimateImage:
@@ -649,10 +662,15 @@ func (d inflightEstimateDeps) estimate(ctx context.Context, apiKey *APIKey, req 
 		return 0, true
 	}
 	primary, fallbacks, upstreamInput := inflightBillingModelCandidates(ctx, d, apiKey, req.Model)
+	databaseHeld := false
 	bestOf := func(models []string) float64 {
 		best := 0.0
 		for _, m := range models {
-			if c := d.estimateOne(ctx, apiKey, m, req, textRate, imageRate); c > best {
+			c := d.estimateOne(ctx, apiKey, m, req, textRate, imageRate)
+			if c < 0 {
+				databaseHeld = true
+			}
+			if c > best {
 				best = c
 			}
 		}
@@ -675,6 +693,9 @@ func (d inflightEstimateDeps) estimate(ctx context.Context, apiKey *APIKey, req 
 		}
 	}
 	if best <= 0 {
+		if databaseHeld {
+			return 0, true
+		}
 		logInflightUnpriced(req.Model, apiKey.GroupID)
 		return 0, false
 	}

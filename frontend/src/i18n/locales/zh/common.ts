@@ -164,6 +164,8 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+    drillFactory: '演练厂',
+    channelGateway: '渠道网关',
     announcements: '公告',
     apiKeys: 'API 密钥',
     batchImage: '批量生图',
@@ -180,6 +182,7 @@ export default {
     channels: '渠道管理',
     availableChannels: '可用渠道',
     modelPlaza: '模型广场',
+    aiExperience: 'AI体验',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     plugins: '插件管理',
@@ -207,6 +210,7 @@ export default {
     paymentPlans: '订阅套餐',
     channelManagement: '渠道管理',
     channelPricing: '渠道定价',
+    modelPlazaReferencePrices: '参考定价',
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
@@ -263,6 +267,7 @@ export default {
     passwordMinLength: '密码至少需要 6 个字符',
     loginFailed: '登录失败，请检查您的凭据后重试。',
     errors: {
+      INVALID_VERIFY_CODE: '验证码无效或已过期',
       USER_NOT_ACTIVE: '账号已被禁用',
     },
     registrationFailed: '注册失败，请重试。',

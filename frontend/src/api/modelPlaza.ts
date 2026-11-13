@@ -20,6 +20,21 @@ export interface PlazaOfficialPricing {
   intervals?: UserPricingInterval[]
 }
 
+/** Manually maintained display-only prices; these never affect billing. */
+export interface PlazaReferencePricing {
+  pricing: Partial<Pick<PlazaOfficialPricing,
+    'input_price' | 'output_price' | 'cache_write_price' | 'cache_write_1h_price' | 'cache_read_price'
+  >> & {
+    image_input_price?: number
+    image_output_price?: number
+    per_request_price?: number
+  }
+  source_label: string
+  source_url: string
+  notes: string
+  updated_at: string
+}
+
 /**
  * 多档时的计价基准：
  * - whole_request：整单按所在档单价计价（目录阶梯、渠道区间）；
@@ -49,6 +64,7 @@ export interface PlazaModel {
   /** 实收口径的展示定价：档位可提供绝对单价或相对基础价倍率；均为标准时段价。 */
   pricing: UserSupportedModelPricing | null
   official_pricing: PlazaOfficialPricing | null
+  reference_pricing?: PlazaReferencePricing
   /** 仅多档模型返回。 */
   long_context_basis?: PlazaLongContextBasis
   /** 仅配置了分时倍率的模型返回。 */

@@ -390,6 +390,64 @@ func TestNormalizeGroupModelPricing_NormalizesEmptyTimePricing(t *testing.T) {
 	require.Nil(t, pricing[0].TimePricing)
 }
 
+func TestNormalizeGroupModelPricing_AllowsMediaPricingModes(t *testing.T) {
+	parameter := &ParameterPricing{
+		Version: 1, Unit: "image", BasePrice: "1",
+		Factors: []ParameterPricingFactor{{Key: "resolution", Values: map[string]string{"1k": "1"}}},
+	}
+	video := &VideoTokenPricing{
+		Version: 1, FPS: 24, Divisor: 1024, AdaptiveSeconds: 15, MaxInputSeconds: 15,
+		Tiers: map[string]VideoTokenPriceTier{
+			"480p": {WithoutVideo: "7", WithVideo: "7", Sizes: map[string]VideoTokenGeometry{"16:9": {854, 480}}},
+		},
+	}
+	for _, tc := range []struct {
+		name, groupPlatform, entryPlatform string
+		wantError                          bool
+	}{
+		{"openai", PlatformOpenAI, PlatformOpenAI, false},
+		{"openai_default", PlatformOpenAI, "", false},
+		{"composite_default", PlatformComposite, "", false},
+		{"composite_container", PlatformComposite, PlatformComposite, false},
+		{"composite_openai", PlatformComposite, PlatformOpenAI, false},
+		{"composite_unsupported_protocol", PlatformComposite, PlatformAnthropic, true},
+		{"unsupported_group", PlatformAnthropic, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := []ChannelModelPricing{
+				{Platform: tc.entryPlatform, Models: []string{"gpt-image-2.5-flare"}, BillingMode: BillingModeParameter, ParameterPricing: parameter},
+				{Platform: tc.entryPlatform, Models: []string{"seedance-2.0"}, BillingMode: BillingModeVideoToken, VideoTokenPricing: video},
+			}
+			// Validate both modes independently, including rejected protocol cases.
+			for _, entry := range input {
+				pricing, err := normalizeGroupModelPricing(tc.groupPlatform, []ChannelModelPricing{entry})
+				if tc.wantError {
+					require.Error(t, err)
+					continue
+				}
+				require.NoError(t, err)
+				require.Len(t, pricing, 1)
+				require.Equal(t, PlatformOpenAI, pricing[0].Platform)
+				require.Equal(t, entry.BillingMode, pricing[0].BillingMode)
+				require.Equal(t, tc.entryPlatform, entry.Platform, "normalization must not mutate input")
+			}
+		})
+	}
+}
+
+func TestNormalizeGroupModelPricing_CompositePreservesLegacyPlatforms(t *testing.T) {
+	input := []ChannelModelPricing{
+		{Models: []string{"generic-model"}, BillingMode: BillingModeToken},
+		{Platform: PlatformAnthropic, Models: []string{"claude-*"}, BillingMode: BillingModeToken},
+		{Platform: PlatformOpenAI, Models: []string{"gpt-*"}, BillingMode: BillingModeToken},
+	}
+	pricing, err := normalizeGroupModelPricing(PlatformComposite, input)
+	require.NoError(t, err)
+	require.Equal(t, PlatformComposite, pricing[0].Platform)
+	require.Equal(t, PlatformAnthropic, pricing[1].Platform)
+	require.Equal(t, PlatformOpenAI, pricing[2].Platform)
+}
+
 type compositeRouteRepoStubForAdmin struct {
 	routes    []CompositeModelRoute
 	created   *CompositeModelRoute

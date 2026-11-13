@@ -246,6 +246,21 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		if slotResult != openAISlotAcquireOK {
 			return
 		}
+		if err := h.gatewayService.PrepareImageParameterPricing(requestCtx, apiKey, parsed, account, channelMapping, clientRequestModel); err != nil {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			h.handleStreamingAwareError(c, http.StatusBadRequest, "invalid_billing_parameters", err.Error(), streamStarted)
+			return
+		}
+		if err := h.gatewayService.ReserveImageParameterBalance(requestCtx, apiKey, account, parsed); err != nil {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			status, code, message, _ := billingErrorDetails(err)
+			h.handleStreamingAwareError(c, status, code, message, streamStarted)
+			return
+		}
 
 		service.SetOpsLatencyMs(c, service.OpsRoutingLatencyMsKey, time.Since(routingStart).Milliseconds())
 		if !parsed.Stream && !jsonKeepaliveStarted {
@@ -273,6 +288,16 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
 		}
 		if err != nil {
+			if errors.Is(err, service.ErrBillingServiceUnavailable) {
+				status, code, message, _ := billingErrorDetails(err)
+				h.handleStreamingAwareError(c, status, code, message, streamStarted)
+				return
+			}
+			if errors.Is(err, service.ErrImageParameterOutcomeUncertain) {
+				h.handleStreamingAwareError(c, http.StatusBadGateway, "image_generation_uncertain",
+					"图片生成结果暂无法确认，预计费用保持冻结，请勿重复提交并联系管理员核对", streamStarted)
+				return
+			}
 			if result != nil && result.ImageCount > 0 {
 				reqLog.Warn("openai.images.forward_partial_error_with_image_result",
 					zap.Int64("account_id", account.ID),
@@ -404,7 +429,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			upstreamModel = result.UpstreamModel
 		}
 		sessionID := service.ExtractClientSessionID(c)
-		h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+		recordUsage := func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:             result,
 				APIKey:             apiKey,
@@ -430,7 +455,16 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 					zap.Int64("account_id", account.ID),
 				).Error("openai.images.record_usage_failed", zap.Error(err))
 			}
-		})
+		}
+		if result != nil && result.ParameterQuote != nil && result.ParameterQuote.HoldID != "" {
+			// Persist the settlement before returning; database failures retain
+			// the hold, and a staged command can be retried after a restart.
+			billingCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 30*time.Second)
+			recordUsage(billingCtx)
+			cancel()
+		} else {
+			h.submitMandatoryUsageRecordTask(c.Request.Context(), recordUsage)
+		}
 
 		reqLog.Debug("openai.images.request_completed",
 			zap.Int64("account_id", account.ID),

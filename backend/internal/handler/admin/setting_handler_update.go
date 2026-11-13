@@ -167,6 +167,8 @@ type UpdateSettingsRequest struct {
 	TableDefaultPageSize        int                   `json:"table_default_page_size"`
 	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
+	DrillFactoryURL             *string               `json:"drill_factory_url"`
+	ChannelGatewayURL           *string               `json:"channel_gateway_url"`
 	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
 
 	// 默认配置
@@ -1265,6 +1267,36 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
+	drillFactoryURL := previousSettings.DrillFactoryURL
+	if req.DrillFactoryURL != nil {
+		drillFactoryURL = strings.TrimSpace(*req.DrillFactoryURL)
+		if len(drillFactoryURL) > 2048 {
+			response.BadRequest(c, "Drill Factory URL is too long (max 2048 characters)")
+			return
+		}
+		if drillFactoryURL != "" {
+			if err := config.ValidateAbsoluteHTTPURL(drillFactoryURL); err != nil {
+				response.BadRequest(c, "Drill Factory URL must be an absolute http(s) URL")
+				return
+			}
+		}
+	}
+
+	channelGatewayURL := previousSettings.ChannelGatewayURL
+	if req.ChannelGatewayURL != nil {
+		channelGatewayURL = strings.TrimSpace(*req.ChannelGatewayURL)
+		if len(channelGatewayURL) > 2048 {
+			response.BadRequest(c, "Channel Gateway URL is too long (max 2048 characters)")
+			return
+		}
+		if channelGatewayURL != "" {
+			if err := config.ValidateAbsoluteHTTPURL(channelGatewayURL); err != nil {
+				response.BadRequest(c, "Channel Gateway URL must be an absolute http(s) URL")
+				return
+			}
+		}
+	}
+
 	// 自定义菜单项验证
 	const (
 		maxCustomMenuItems    = 20
@@ -1654,6 +1686,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,
+		DrillFactoryURL:                        drillFactoryURL,
+		ChannelGatewayURL:                      channelGatewayURL,
 		CustomEndpoints:                        customEndpointsJSON,
 		DefaultConcurrency:                     req.DefaultConcurrency,
 		DefaultBalance:                         req.DefaultBalance,
@@ -2318,6 +2352,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TableDefaultPageSize:                                   updatedSettings.TableDefaultPageSize,
 		TablePageSizeOptions:                                   updatedSettings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(updatedSettings.CustomMenuItems),
+		DrillFactoryURL:                                        updatedSettings.DrillFactoryURL,
+		ChannelGatewayURL:                                      updatedSettings.ChannelGatewayURL,
 		CustomEndpoints:                                        dto.ParseCustomEndpoints(updatedSettings.CustomEndpoints),
 		DefaultConcurrency:                                     updatedSettings.DefaultConcurrency,
 		DefaultBalance:                                         updatedSettings.DefaultBalance,

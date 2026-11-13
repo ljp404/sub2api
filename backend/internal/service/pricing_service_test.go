@@ -1045,6 +1045,25 @@ func TestListModelNamesByProvider_EmptyCatalog(t *testing.T) {
 	require.Empty(t, got)
 }
 
+func TestListPricingCatalogReturnsSortedPricedProviders(t *testing.T) {
+	svc := &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{
+			"z-model": {LiteLLMProvider: "openai", InputCostPerToken: 1e-6},
+			"a-model": {LiteLLMProvider: "minimax", OutputCostPerImage: 0.08},
+			"no-provider": {InputCostPerToken: 1e-6},
+		},
+	}
+
+	got := svc.ListPricingCatalog()
+
+	require.Len(t, got, 2)
+	require.Equal(t, "minimax", got[0].Provider)
+	require.Equal(t, "a-model", got[0].ModelName)
+	require.InDelta(t, 0.08, got[0].Pricing.OutputCostPerImage, 1e-12)
+	require.Equal(t, "openai", got[1].Provider)
+	require.Equal(t, "z-model", got[1].ModelName)
+}
+
 // --- above_XXXk 绝对价字段折算为阈值+倍率 ---
 
 func TestParsePricingData_DerivesLongContextFromAboveTierFields(t *testing.T) {

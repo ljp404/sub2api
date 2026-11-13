@@ -137,6 +137,24 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
+	minimaxVideoHandler := func(c *gin.Context) {
+		platform := getGroupPlatform(c)
+		// Composite GET requests have no model to resolve. The MiniMax task
+		// handler verifies the task's API key, user, group, and bound account
+		// before selecting the original MiniMax account.
+		compositeTaskLookup := platform == service.PlatformComposite && c.Request.Method == http.MethodGet
+		if platform != service.PlatformMiniMax && !compositeTaskLookup {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": gin.H{
+					"type":    "not_found_error",
+					"message": "MiniMax Video V2 API is only supported for MiniMax groups",
+				},
+			})
+			return
+		}
+		h.OpenAIGateway.MiniMaxVideoTasks(c)
+	}
 	videoEditHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
 			h.OpenAIGateway.GrokVideoEdit(c)
@@ -435,6 +453,9 @@ func RegisterGatewayRoutes(
 	rootRoute(http.MethodGet, "/videos/extensions/:request_id", bodyLimit, videoStatusHandler)
 	rootRoute(http.MethodGet, "/videos/:request_id", bodyLimit, videoStatusHandler)
 	rootRoute(http.MethodGet, "/videos/:request_id/content", bodyLimit, videoContentHandler)
+	// MiniMax Video V2 native asynchronous task API.
+	rootRoute(http.MethodPost, "/v2/video_generation", bodyLimit, minimaxVideoHandler)
+	rootRoute(http.MethodGet, "/v2/query/video_generation/:task_id", bodyLimit, minimaxVideoHandler)
 
 	rootVoiceHandler := func(endpoint string) gin.HandlerFunc {
 		return func(c *gin.Context) {
