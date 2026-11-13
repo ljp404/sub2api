@@ -73,8 +73,8 @@ func ValidateVideoTokenPricing(rule *VideoTokenPricing) error {
 	if rule == nil || rule.Version != 1 || rule.FPS != 24 || rule.Divisor != 1024 {
 		return fmt.Errorf("video token pricing requires version 1, fps 24 and divisor 1024")
 	}
-	if rule.AdaptiveSeconds != 15 || rule.MaxInputSeconds < 1 || rule.MaxInputSeconds > 3600 {
-		return fmt.Errorf("adaptive_seconds must be 15; max_input_seconds must be 1..3600")
+	if rule.AdaptiveSeconds < 0 || rule.AdaptiveSeconds > 3600 || rule.MaxInputSeconds < 1 || rule.MaxInputSeconds > 3600 {
+		return fmt.Errorf("adaptive_seconds must be 0..3600; max_input_seconds must be 1..3600")
 	}
 	if len(rule.Tiers) == 0 || len(rule.Tiers) > 32 {
 		return fmt.Errorf("video token pricing requires 1..32 tiers")
@@ -102,6 +102,13 @@ func ValidateVideoTokenPricing(rule *VideoTokenPricing) error {
 		}
 	}
 	return nil
+}
+
+func videoTokenAdaptiveSeconds(rule *VideoTokenPricing) int {
+	if rule.AdaptiveSeconds == 0 {
+		return 15
+	}
+	return rule.AdaptiveSeconds
 }
 
 func CalculateVideoTokenPricing(rule *VideoTokenPricing, input VideoTokenPricingInput) (*VideoTokenPricingSnapshot, error) {

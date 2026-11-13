@@ -11,12 +11,16 @@
           <th class="pb-2">{{ t('admin.channels.videoToken.tier') }}</th>
           <th class="pb-2">{{ t('admin.channels.videoToken.withoutVideo') }}</th>
           <th class="pb-2">{{ t('admin.channels.videoToken.withVideo') }}</th>
+          <th class="pb-2"></th>
         </tr></thead>
         <tbody>
           <tr v-for="(tier, name) in rule.tiers" :key="name">
             <td class="py-1 pr-2 font-medium">{{ displayTierName(String(name)) }}</td>
             <td class="py-1 pr-2"><input :value="tier.without_video" :aria-label="`${displayTierName(String(name))} ${t('admin.channels.videoToken.withoutVideo')}`" type="text" inputmode="decimal" class="input min-w-24 text-sm" @input="setRate(String(name), 'without_video', ($event.target as HTMLInputElement).value)" /></td>
             <td class="py-1"><input :value="tier.with_video" :aria-label="`${displayTierName(String(name))} ${t('admin.channels.videoToken.withVideo')}`" type="text" inputmode="decimal" class="input min-w-24 text-sm" @input="setRate(String(name), 'with_video', ($event.target as HTMLInputElement).value)" /></td>
+            <td class="py-1 pl-2">
+              <button type="button" :disabled="Object.keys(rule.tiers).length <= 1" :title="t('admin.channels.videoToken.removeTier')" :aria-label="`${t('admin.channels.videoToken.removeTier')} ${displayTierName(String(name))}`" class="disabled:cursor-not-allowed disabled:opacity-40" @click="removeTier(String(name))"><Icon name="trash" size="sm" /></button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -40,6 +44,10 @@
     <label class="block max-w-xs text-xs text-gray-600 dark:text-gray-300">
       {{ t('admin.channels.videoToken.maxInput') }}
       <input :value="rule.max_input_seconds" type="number" min="1" max="3600" class="input mt-1 text-sm" @input="update({ max_input_seconds: Number(($event.target as HTMLInputElement).value) })" />
+    </label>
+    <label class="block max-w-xs text-xs text-gray-600 dark:text-gray-300">
+      {{ t('admin.channels.videoToken.adaptiveSeconds') }}
+      <input :value="rule.adaptive_seconds || 15" type="number" min="1" max="3600" class="input mt-1 text-sm" @input="update({ adaptive_seconds: Number(($event.target as HTMLInputElement).value) })" />
     </label>
     <div class="border-t border-gray-200 pt-3 dark:border-dark-600">
       <div class="mb-3 text-xs font-medium">{{ t('admin.channels.parameter.preview') }}</div>
@@ -104,6 +112,12 @@ function preset(fast: boolean) {
 function setRate(name: string, key: 'with_video' | 'without_video', value: string) {
   const next = copy()
   next.tiers[name][key] = value
+  emit('update:modelValue', next)
+}
+function removeTier(name: string) {
+  if (Object.keys(rule.value.tiers).length <= 1) return
+  const next = copy()
+  delete next.tiers[name]
   emit('update:modelValue', next)
 }
 function setSize(name: string, ratio: string, key: 'width' | 'height', value: string) {

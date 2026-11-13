@@ -83,7 +83,7 @@ export interface VideoTokenPricing {
   version: 1
   fps: 24
   divisor: 1024
-  adaptive_seconds: 15
+  adaptive_seconds: number
   max_input_seconds: number
   tiers: Record<string, {
     without_video: string

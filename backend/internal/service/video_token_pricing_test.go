@@ -103,6 +103,29 @@ func TestVideoTokenAdmissionAndCompletion(t *testing.T) {
 	require.Equal(t, int64(405000), final.Tokens)
 }
 
+func TestVideoTokenAdaptiveReservationSecondsArePerRule(t *testing.T) {
+	body := []byte(`{"model":"seedance","content":[{"type":"text","text":"example"}],"duration":-1,"resolution":"1080p","ratio":"16:9"}`)
+
+	for _, test := range []struct {
+		name       string
+		configured int
+		expected   string
+	}{
+		{name: "legacy default", configured: 15, expected: "15"},
+		{name: "custom reservation", configured: 30, expected: "30"},
+		{name: "omitted legacy field", configured: 0, expected: "15"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rule := videoTokenTestRule()
+			rule.AdaptiveSeconds = test.configured
+			quote, _, err := prepareVideoTokenQuote(rule, body, "1")
+			require.NoError(t, err)
+			require.Equal(t, test.expected, quote.Input.OutputSeconds)
+			require.Equal(t, test.configured, quote.Rule.AdaptiveSeconds)
+		})
+	}
+}
+
 func videoTokenMeasuredTestJob(t *testing.T, hasVideo bool) *VideoTokenBillingJob {
 	t.Helper()
 	rule := videoTokenTestRule()

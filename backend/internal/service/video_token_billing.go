@@ -161,7 +161,7 @@ func prepareVideoTokenQuote(rule *VideoTokenPricing, body []byte, multiplier str
 	seconds := duration.Raw
 	if seconds == "-1" {
 		spec.AdaptiveDuration = true
-		seconds = strconv.Itoa(rule.AdaptiveSeconds)
+		seconds = strconv.Itoa(videoTokenAdaptiveSeconds(rule))
 	} else {
 		n, err := parameterDecimal(seconds, true)
 		if err != nil || n.GreaterThan(decimal.NewFromInt(3600)) {
