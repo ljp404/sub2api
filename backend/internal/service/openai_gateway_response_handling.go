@@ -1403,16 +1403,47 @@ func mergeHostedImageGenToolUsage(imageGen gjson.Result, usage *OpenAIUsage) {
 	if !imageGen.Exists() || !imageGen.IsObject() {
 		return
 	}
+	imageUsage, _ := openAIUsageFromGJSON(imageGen)
 	if usage.ImageOutputTokens == 0 {
-		if v := imageGen.Get("output_tokens_details.image_tokens").Int(); v > 0 {
-			usage.ImageOutputTokens = int(v)
+		if imageUsage.ImageOutputTokens > 0 {
+			usage.ImageOutputTokens = imageUsage.ImageOutputTokens
 		}
 	}
 	if usage.ImageInputTokens == 0 {
-		if v := imageGen.Get("input_tokens_details.image_tokens").Int(); v > 0 {
-			usage.ImageInputTokens = int(v)
+		if imageUsage.ImageInputTokens > 0 {
+			usage.ImageInputTokens = imageUsage.ImageInputTokens
 		}
 	}
+	if usage.CacheReadInputTokens == 0 && imageUsage.CacheReadInputTokens > 0 {
+		usage.CacheReadInputTokens = imageUsage.CacheReadInputTokens
+	}
+	if usage.ImageCacheReadTokens == 0 && imageUsage.ImageCacheReadTokens > 0 {
+		usage.ImageCacheReadTokens = imageUsage.ImageCacheReadTokens
+	}
+	if usage.CacheReadInputTokens < usage.ImageCacheReadTokens {
+		usage.CacheReadInputTokens = usage.ImageCacheReadTokens
+	}
+	if usage.InputTokens > 0 && usage.CacheReadInputTokens > usage.InputTokens {
+		usage.CacheReadInputTokens = usage.InputTokens
+	}
+	if usage.ImageCacheReadTokens > usage.CacheReadInputTokens {
+		usage.ImageCacheReadTokens = usage.CacheReadInputTokens
+	}
+	if usage.ImageCacheReadTokens > usage.ImageInputTokens {
+		usage.ImageCacheReadTokens = usage.ImageInputTokens
+	}
+}
+
+func openAIImageCacheReadTokensFromUsage(value gjson.Result) int {
+	for _, path := range []string{
+		"input_tokens_details.cached_tokens_details.image_tokens",
+		"prompt_tokens_details.cached_tokens_details.image_tokens",
+	} {
+		if nested := value.Get(path); nested.Exists() {
+			return max(int(nested.Int()), 0)
+		}
+	}
+	return 0
 }
 
 func extractOpenAIResponseIDFromJSONBytes(body []byte) string {
@@ -1544,20 +1575,23 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 	}
 	cacheReadTokens := openAICacheReadTokensFromUsage(value)
 	cacheCreationTokens := openAICacheCreationTokensFromUsage(value)
-	imageOutputTokens := value.Get("output_tokens_details.image_tokens").Int()
-	if imageOutputTokens == 0 {
-		imageOutputTokens = value.Get("completion_tokens_details.image_tokens").Int()
-	}
-	// 图片输入 token（如 gpt-image-2 的 /v1/images/edits 带图请求），
-	// 上游在 input_tokens_details.image_tokens 单独回传，用于图/文输入分价计费。
-	// 普通文本请求该字段为 0，走原路径行为不变。
 	imageInputTokens := firstPositiveGJSONInt(
 		value.Get("input_tokens_details.image_tokens"),
 		value.Get("prompt_tokens_details.image_tokens"),
 	)
+	imageCacheReadTokens := min(
+		openAIImageCacheReadTokensFromUsage(value),
+		max(imageInputTokens, 0),
+		max(cacheReadTokens, 0),
+	)
+	imageOutputTokens := value.Get("output_tokens_details.image_tokens").Int()
+	if imageOutputTokens == 0 {
+		imageOutputTokens = value.Get("completion_tokens_details.image_tokens").Int()
+	}
 	return OpenAIUsage{
 		InputTokens:              int(inputTokens),
 		ImageInputTokens:         imageInputTokens,
+		ImageCacheReadTokens:     imageCacheReadTokens,
 		OutputTokens:             int(outputTokens),
 		CacheCreationInputTokens: cacheCreationTokens,
 		CacheReadInputTokens:     cacheReadTokens,
@@ -1572,6 +1606,20 @@ func openAICacheReadTokensFromUsage(value gjson.Result) int {
 	} {
 		if nested.Exists() {
 			return max(int(nested.Int()), 0)
+		}
+	}
+
+	for _, path := range []string{
+		"input_tokens_details.cached_tokens_details",
+		"prompt_tokens_details.cached_tokens_details",
+	} {
+		details := value.Get(path)
+		if details.IsObject() {
+			textTokens := max(int(details.Get("text_tokens").Int()), 0)
+			imageTokens := max(int(details.Get("image_tokens").Int()), 0)
+			if textTokens > 0 || imageTokens > 0 {
+				return textTokens + imageTokens
+			}
 		}
 	}
 

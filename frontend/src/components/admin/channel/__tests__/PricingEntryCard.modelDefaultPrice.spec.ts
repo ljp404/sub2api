@@ -50,7 +50,12 @@ const emittedEntries = (wrapper: ReturnType<typeof shallowMount>) =>
 describe('PricingEntryCard default price auto-fill', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getModelDefaultPricing.mockResolvedValue({ found: true, input_price: 3e-6, output_price: 15e-6 })
+    getModelDefaultPricing.mockResolvedValue({
+      found: true,
+      input_price: 3e-6,
+      output_price: 15e-6,
+      image_cache_read_price: 2e-6,
+    })
   })
 
   it('auto-fills the default price when a model is added to an empty entry', async () => {
@@ -63,6 +68,7 @@ describe('PricingEntryCard default price auto-fill', () => {
       models: ['claude-opus-4-8'],
       input_price: 3,
       output_price: 15,
+      image_cache_read_price: 2,
     })
   })
 

@@ -408,6 +408,12 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	if channelMapping.Mapped {
 		modelName = channelMapping.MappedModel
 	}
+	geminiImageIntent := action != "countTokens" && service.GeminiImageGenerationIntent(
+		body, urlModel, reqModel, channelMapping.MappedModel, modelName,
+	)
+	if geminiImageIntent {
+		c.Request = c.Request.WithContext(service.WithGeminiImageGenerationEndpoint(c.Request.Context()))
+	}
 
 	// 引用显式缓存的请求只能发往持有该缓存的账号，且不参与会话粘性与换号。
 	cachedContentBinding, body, ok := h.resolveGeminiCachedContentBinding(c, reqLog, apiKey, modelName, body)

@@ -66,12 +66,13 @@ export interface UsageCleanupTask {
   updated_at: string
 }
 
-export interface UncertainImageHold {
+export interface ImageHoldRecord {
   id: string
   user_id: number
   api_key_id: number
   account_id: number
   amount: string
+  state: 'submitted' | 'uncertain'
   dimensions: Record<string, string>
   created_at: string
 }
@@ -217,12 +218,12 @@ export async function cancelCleanupTask(taskId: number): Promise<{ id: number; s
   return data
 }
 
-export async function listUncertainImageHolds(params: {
+export async function listImageHolds(params: {
   page?: number
   page_size?: number
-}): Promise<PaginatedResponse<UncertainImageHold>> {
-  const { data } = await apiClient.get<PaginatedResponse<UncertainImageHold>>(
-    '/admin/usage/image-holds/uncertain',
+}): Promise<PaginatedResponse<ImageHoldRecord>> {
+  const { data } = await apiClient.get<PaginatedResponse<ImageHoldRecord>>(
+    '/admin/usage/image-holds',
     { params }
   )
   return data
@@ -240,7 +241,7 @@ export const adminUsageAPI = {
   listCleanupTasks,
   createCleanupTask,
   cancelCleanupTask,
-  listUncertainImageHolds,
+  listImageHolds,
   releaseUncertainImageHold
 }
 

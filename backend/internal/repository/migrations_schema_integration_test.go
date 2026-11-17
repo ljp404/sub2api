@@ -83,6 +83,9 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "usage_logs", "upstream_response_model", "character varying", 200, true)
 	requireColumn(t, tx, "usage_logs", "upstream_model_mismatch", "boolean", 0, true)
 	requireIndex(t, tx, "usage_logs", usageLogsUpstreamModelMismatchIndex)
+	requireColumn(t, tx, "channel_model_pricing", "image_token_hold_price", "numeric", 0, false)
+	requireColumnDefaultContains(t, tx, "channel_model_pricing", "image_token_hold_price", "0.05")
+	requireColumn(t, tx, "channel_model_pricing", "image_cache_read_price", "numeric", 0, true)
 
 	var mismatchIndexDef string
 	require.NoError(t, tx.QueryRowContext(context.Background(), `

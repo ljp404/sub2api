@@ -37,6 +37,8 @@ type ParameterPricingInput struct {
 type ParameterPricingSnapshot struct {
 	HoldID     string                `json:"hold_id,omitempty"`
 	RuleHash   string                `json:"rule_hash"`
+	HoldOnly   bool                  `json:"hold_only,omitempty"`
+	HoldPerImage string              `json:"hold_per_image,omitempty"`
 	Rule       *ParameterPricing     `json:"rule"`
 	Input      ParameterPricingInput `json:"input"`
 	Factors    map[string]string     `json:"matched_factors"`

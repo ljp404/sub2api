@@ -434,6 +434,7 @@ export default {
     imageOutputTokens: '图片输出 Token',
     imageOutputTokenPrice: '图片输出单价',
     imageOutputCost: '图片输出费用',
+    imageTokenReservation: '预冻结：${unit} × {count} 张 × {multiplier} = ${hold}；实际扣费：${actual}',
     imageSizeSource: '尺寸来源',
     imageSizeBreakdown: '尺寸明细',
     imageSizeSourceOutput: '上游输出',

@@ -36,6 +36,7 @@
                 <th class="px-4 py-3">{{ t('admin.usage.imageHolds.apiKeyId') }}</th>
                 <th class="px-4 py-3">{{ t('admin.usage.imageHolds.accountId') }}</th>
                 <th class="px-4 py-3">{{ t('admin.usage.imageHolds.amount') }}</th>
+                <th class="px-4 py-3">{{ t('admin.usage.imageHolds.status') }}</th>
                 <th class="px-4 py-3">{{ t('admin.usage.imageHolds.dimensions') }}</th>
                 <th class="px-4 py-3">{{ t('admin.usage.imageHolds.createdAt') }}</th>
                 <th class="px-4 py-3">{{ t('common.actions') }}</th>
@@ -48,6 +49,16 @@
                 <td class="px-4 py-3">{{ hold.api_key_id }}</td>
                 <td class="px-4 py-3">{{ hold.account_id }}</td>
                 <td class="whitespace-nowrap px-4 py-3 font-medium">{{ hold.amount }} USD</td>
+                <td class="whitespace-nowrap px-4 py-3">
+                  <span
+                    class="inline-flex rounded px-2 py-1 text-xs"
+                    :class="hold.state === 'uncertain'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'"
+                  >
+                    {{ t(`admin.usage.imageHolds.states.${hold.state}`) }}
+                  </span>
+                </td>
                 <td class="px-4 py-3">
                   <span v-if="Object.keys(hold.dimensions || {}).length">
                     {{ Object.entries(hold.dimensions).map(([key, value]) => `${key}: ${value}`).join(', ') }}
@@ -56,9 +67,12 @@
                 </td>
                 <td class="whitespace-nowrap px-4 py-3">{{ formatDate(hold.created_at) }}</td>
                 <td class="whitespace-nowrap px-4 py-3">
-                  <button class="btn btn-danger btn-sm" @click="openRelease(hold)">
+                  <button v-if="hold.state === 'uncertain'" class="btn btn-danger btn-sm" @click="openRelease(hold)">
                     {{ t('admin.usage.imageHolds.release') }}
                   </button>
+                  <span v-else class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.usage.imageHolds.investigate') }}
+                  </span>
                 </td>
               </tr>
             </tbody>
@@ -112,13 +126,13 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useAppStore } from '@/stores/app'
-import { adminUsageAPI, type UncertainImageHold } from '@/api/admin/usage'
+import { adminUsageAPI, type ImageHoldRecord } from '@/api/admin/usage'
 import type { PaginatedResponse } from '@/types'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
-const holds = ref<UncertainImageHold[]>([])
-const selected = ref<UncertainImageHold | null>(null)
+const holds = ref<ImageHoldRecord[]>([])
+const selected = ref<ImageHoldRecord | null>(null)
 const reason = ref('')
 const page = ref(1)
 const pageSize = ref(20)
@@ -133,7 +147,7 @@ function formatDate(value: string) {
 async function load() {
   loading.value = true
   try {
-    const result: PaginatedResponse<UncertainImageHold> = await adminUsageAPI.listUncertainImageHolds({
+    const result: PaginatedResponse<ImageHoldRecord> = await adminUsageAPI.listImageHolds({
       page: page.value,
       page_size: pageSize.value
     })
@@ -151,7 +165,7 @@ function changePage(value: number) {
   void load()
 }
 
-function openRelease(hold: UncertainImageHold) {
+function openRelease(hold: ImageHoldRecord) {
   selected.value = hold
   reason.value = ''
 }

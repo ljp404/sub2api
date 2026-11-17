@@ -57,6 +57,18 @@ func TestParameterImageSizeMapping(t *testing.T) {
 	}
 }
 
+func TestParameterImageSizeMappingNilRule(t *testing.T) {
+	require.False(t, imageSizeMappingEnabled(nil))
+	dimensions, err := imageSizeMappedDimensions(&OpenAIImagesRequest{
+		Size: "auto",
+		PriceDimensions: map[string]string{
+			"quality": "high",
+		},
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"quality": "high", "aspect_ratio": "auto"}, dimensions)
+}
+
 func TestParameterImageSizeMappingUsesOnlyConfiguredOptions(t *testing.T) {
 	rule := imageSizeMappingTestRule()
 	delete(rule.Factors[0].Values, "2k")

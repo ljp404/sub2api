@@ -16,24 +16,24 @@ import (
 var _ service.ImageParameterBillingRepository = (*usageBillingRepository)(nil)
 var _ service.ImageParameterHoldAdminRepository = (*usageBillingRepository)(nil)
 
-func (r *usageBillingRepository) ListUncertainImageParameterHolds(ctx context.Context, limit, offset int) ([]service.ImageParameterUncertainHold, int64, error) {
+func (r *usageBillingRepository) ListImageParameterHolds(ctx context.Context, limit, offset int) ([]service.ImageParameterHoldRecord, int64, error) {
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM image_parameter_billing_holds WHERE state='uncertain'`).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM image_parameter_billing_holds WHERE state IN ('submitted','uncertain')`).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT id,user_id,api_key_id,account_id,hold_amount::text,
+	rows, err := r.db.QueryContext(ctx, `SELECT id,user_id,api_key_id,account_id,hold_amount::text,state,
 		COALESCE(quote->'input'->'dimensions','{}'::jsonb),created_at
-		FROM image_parameter_billing_holds WHERE state='uncertain'
+		FROM image_parameter_billing_holds WHERE state IN ('submitted','uncertain')
 		ORDER BY created_at DESC,id LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer rows.Close()
-	holds := make([]service.ImageParameterUncertainHold, 0)
+	holds := make([]service.ImageParameterHoldRecord, 0)
 	for rows.Next() {
-		var hold service.ImageParameterUncertainHold
+		var hold service.ImageParameterHoldRecord
 		var dimensions []byte
-		if err := rows.Scan(&hold.ID, &hold.UserID, &hold.APIKeyID, &hold.AccountID, &hold.Amount, &dimensions, &hold.CreatedAt); err != nil {
+		if err := rows.Scan(&hold.ID, &hold.UserID, &hold.APIKeyID, &hold.AccountID, &hold.Amount, &hold.State, &dimensions, &hold.CreatedAt); err != nil {
 			return nil, 0, err
 		}
 		if err := json.Unmarshal(dimensions, &hold.Dimensions); err != nil {
@@ -225,6 +225,30 @@ func captureImageParameterBalance(ctx context.Context, tx *sql.Tx, cmd *service.
 		held.Input.Multiplier != cmd.ParameterPricing.Input.Multiplier ||
 		!reflect.DeepEqual(held.Input.Dimensions, cmd.ParameterPricing.Input.Dimensions) {
 		return fmt.Errorf("image reservation settlement conflict")
+	}
+	if held.HoldOnly {
+		if !cmd.ParameterPricing.HoldOnly || held.Input.Quantity < 1 || cmd.ImageCount < 1 ||
+			cmd.ParameterPricing.Input.Quantity != held.Input.Quantity ||
+			cmd.ParameterPricing.HoldPerImage != held.HoldPerImage || cmd.BalanceCost < 0 ||
+			!decimal.RequireFromString(held.ActualCost).Equal(decimal.RequireFromString(amount)) ||
+			!decimal.RequireFromString(cmd.ParameterPricing.ActualCost).Equal(decimal.RequireFromString(amount)) {
+			return fmt.Errorf("image token hold settlement amount mismatch")
+		}
+		var balance float64
+		err = tx.QueryRowContext(ctx, `UPDATE users SET balance=balance+$1-$2,
+			frozen_balance=COALESCE(frozen_balance,0)-$1,updated_at=NOW()
+			WHERE id=$3 AND COALESCE(frozen_balance,0)>=$1 RETURNING balance`,
+			amount, cmd.BalanceCost, userID).Scan(&balance)
+		if err != nil {
+			return err
+		}
+		result.NewBalance, result.BalanceOverdrafted = &balance, balance < 0
+		_, err = tx.ExecContext(ctx, `UPDATE image_parameter_billing_holds SET state='settled',last_error=NULL,updated_at=NOW() WHERE id=$1`,
+			cmd.ParameterPricing.HoldID)
+		return err
+	}
+	if held.HoldOnly || cmd.ParameterPricing.HoldOnly {
+		return fmt.Errorf("image parameter settlement type conflict")
 	}
 	expected, err := service.CalculateParameterPricing(held.Rule, service.ParameterPricingInput{
 		Dimensions: held.Input.Dimensions, Multiplier: held.Input.Multiplier, Quantity: cmd.ImageCount,

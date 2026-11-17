@@ -143,6 +143,23 @@ func OpenAIImagesEndpointFromContext(ctx context.Context) bool {
 	return ok && enabled
 }
 
+// WithGeminiImageGenerationEndpoint marks native Gemini image-generation requests.
+func WithGeminiImageGenerationEndpoint(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, ctxkey.GeminiImageGenerationEndpoint, true)
+}
+
+// GeminiImageGenerationEndpointFromContext reports whether the request is Gemini image generation.
+func GeminiImageGenerationEndpointFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, ok := ctx.Value(ctxkey.GeminiImageGenerationEndpoint).(bool)
+	return ok && enabled
+}
+
 func resolveFinalAntigravityModelKey(ctx context.Context, account *Account, requestedModel string) string {
 	modelKey := mapAntigravityModel(account, requestedModel)
 	if modelKey == "" {

@@ -56,6 +56,9 @@ const (
 	// 用于区分"用错端点"与"端点用对了但账号没能力"。
 	OpenAIImagesEndpoint Key = "ctx_openai_images_endpoint"
 
+	// GeminiImageGenerationEndpoint 标识原生 Gemini generateContent 生图请求。
+	GeminiImageGenerationEndpoint Key = "ctx_gemini_image_generation_endpoint"
+
 	// Group 认证后的分组信息，由 API Key 认证中间件设置
 	Group Key = "ctx_group"
 

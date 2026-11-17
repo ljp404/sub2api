@@ -258,9 +258,8 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	resolved.Intervals = filterValidIntervals(chPricing.Intervals)
 }
 
-// applyChannelImagePriceOverrides 应用渠道图片输入/输出价，规则与其他 token 字段一致：
-//   - 渠道填写了（含 0）：覆盖目录价。图片输出价同时标记 ImageOutputPriceExplicit，
-//     显式 0 表示图片输出免费，computeTokenBreakdown 不再回退文本输出价。
+// applyChannelImagePriceOverrides 应用渠道图片输入/缓存读取/输出价，规则与其他 token 字段一致：
+//   - 渠道填写了（含 0）：覆盖目录价。显式 0 表示对应项目免费，不回退到文本价格。
 //   - 渠道留空（nil）：沿用目录价（LiteLLM 价格表或内置兜底价）。目录也没有图片价时，
 //     computeTokenBreakdown 分别回退文本输入/输出价。
 //
@@ -276,6 +275,10 @@ func applyChannelImagePriceOverrides(chPricing *ChannelModelPricing, pricing *Mo
 	}
 	if chPricing.ImageInputPrice != nil {
 		pricing.ImageInputPricePerToken = *chPricing.ImageInputPrice
+	}
+	if chPricing.ImageCacheReadPrice != nil {
+		pricing.ImageCacheReadPricePerToken = *chPricing.ImageCacheReadPrice
+		pricing.ImageCacheReadPriceExplicit = true
 	}
 }
 

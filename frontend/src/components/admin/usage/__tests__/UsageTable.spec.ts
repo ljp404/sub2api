@@ -70,6 +70,7 @@ const messages: Record<string, string> = {
   'usage.imageSizeUnknown': 'unknown',
   'usage.imageUnitPrice': 'Per-image price',
   'usage.imageTotalPrice': 'Image total price',
+  'usage.imageTokenReservation': 'Reserved: ${unit} × {count} images × {multiplier} = ${hold}; actual charge: ${actual}',
   'usage.stream': 'Stream',
   'usage.sync': 'Sync',
   'usage.nativeCompactionV2': 'Compaction',
@@ -93,7 +94,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => localizedMessages[locale][key] ?? messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) => Object.entries(params ?? {}).reduce(
+        (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
+        localizedMessages[locale][key] ?? messages[key] ?? key,
+      ),
     }),
   }
 })
@@ -363,6 +367,36 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('$5.0000 / 1M tokens')
     expect(text).toContain('$30.0000 / 1M tokens')
     expect(text).toContain('$0.069568')
+  })
+
+  it('shows token image reservation without requiring a parameter pricing rule', async () => {
+    const row = {
+      ...baseImageRow,
+      billing_mode: 'token',
+      actual_cost: 0.08,
+      parameter_pricing: {
+        rule_hash: 'token-image-rule-hash',
+        hold_only: true,
+        hold_per_image: '0.05',
+        rule: null,
+        input: { dimensions: null, quantity: 2, multiplier: '1' },
+        matched_factors: null,
+        unit_price: '0.05',
+        total_cost: '0.10',
+        actual_cost: '0.10',
+      },
+    }
+    const wrapper = mount(UsageTable, {
+      props: { data: [row], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+
+    const triggers = wrapper.findAll('.group.relative')
+    await triggers[triggers.length - 1].trigger('mouseenter')
+    await nextTick()
+
+    expect(wrapper.text()).toContain('Reserved: $0.05 × 2 images × 1 = $0.10; actual charge: $0.08000000')
+    expect(wrapper.text()).toContain('token-image-rule')
   })
 
   it.each(['token', 'image', 'per_request'])('keeps eight decimal places in %s cost details', async (billingMode) => {

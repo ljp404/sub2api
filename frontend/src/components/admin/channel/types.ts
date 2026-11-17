@@ -36,7 +36,9 @@ export interface PricingFormEntry {
   flex_multiplier?: number | string | null
   reasoning_effort_multipliers?: Record<string, number | string> | null
   image_input_price: number | string | null
+  image_cache_read_price?: number | string | null
   image_output_price: number | string | null
+  image_token_hold_price?: number | string | null
   per_request_price: number | string | null
   intervals: IntervalFormEntry[]
   time_pricing: TimePricingFormEntry

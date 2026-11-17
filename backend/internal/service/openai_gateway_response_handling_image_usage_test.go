@@ -20,7 +20,12 @@ func TestExtractOpenAIUsageFromJSONBytes_MergesHostedImageGenToolUsage(t *testin
 			"tool_usage": {
 				"image_gen": {
 					"input_tokens": 7918,
-					"input_tokens_details": {"image_tokens": 7620, "text_tokens": 298},
+					"input_tokens_details": {
+						"image_tokens": 7620,
+						"text_tokens": 298,
+						"cached_tokens": 500,
+						"cached_tokens_details": {"text_tokens": 200, "image_tokens": 300}
+					},
 					"output_tokens": 186,
 					"output_tokens_details": {"image_tokens": 186, "text_tokens": 0},
 					"total_tokens": 8104
@@ -35,6 +40,8 @@ func TestExtractOpenAIUsageFromJSONBytes_MergesHostedImageGenToolUsage(t *testin
 	assert.Equal(t, 1005, usage.OutputTokens, "output_tokens from response.usage")
 	assert.Equal(t, 186, usage.ImageOutputTokens, "image output tokens merged from tool_usage.image_gen")
 	assert.Equal(t, 7620, usage.ImageInputTokens, "image input tokens merged from tool_usage.image_gen")
+	assert.Equal(t, 500, usage.CacheReadInputTokens, "cached input tokens merged from tool_usage.image_gen")
+	assert.Equal(t, 300, usage.ImageCacheReadTokens, "cached image tokens merged from tool_usage.image_gen")
 }
 
 func TestExtractOpenAIUsageFromJSONBytes_NonStreamingMergesImageGen(t *testing.T) {
@@ -80,6 +87,60 @@ func TestExtractOpenAIUsageFromJSONBytes_NoToolUsageUnchanged(t *testing.T) {
 	assert.Equal(t, 50, usage.OutputTokens)
 	assert.Equal(t, 0, usage.ImageOutputTokens, "no image tokens without tool_usage")
 	assert.Equal(t, 0, usage.ImageInputTokens, "no image tokens without tool_usage")
+}
+
+func TestExtractOpenAIUsageFromJSONBytes_ImageTokenCacheBreakdown(t *testing.T) {
+	body := []byte(`{
+		"usage": {
+			"input_tokens": 10000,
+			"input_tokens_details": {
+				"text_tokens": 9000,
+				"image_tokens": 1000,
+				"cached_tokens": 1120,
+				"cached_tokens_details": {
+					"text_tokens": 1000,
+					"image_tokens": 120
+				}
+			},
+			"output_tokens": 18000,
+			"output_tokens_details": {
+				"text_tokens": 0,
+				"image_tokens": 18000
+			},
+			"total_tokens": 28000
+		}
+	}`)
+
+	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+	assert.True(t, ok)
+	assert.Equal(t, 10000, usage.InputTokens)
+	assert.Equal(t, 1000, usage.ImageInputTokens)
+	assert.Equal(t, 1120, usage.CacheReadInputTokens)
+	assert.Equal(t, 1000, usage.CacheReadInputTokens-usage.ImageCacheReadTokens)
+	assert.Equal(t, 120, usage.ImageCacheReadTokens)
+	assert.Equal(t, 18000, usage.OutputTokens)
+	assert.Equal(t, 18000, usage.ImageOutputTokens)
+
+	tokens := UsageTokens{
+		InputTokens:           usage.InputTokens - usage.CacheReadInputTokens,
+		ImageInputTokens:      usage.ImageInputTokens - usage.ImageCacheReadTokens,
+		ImageCacheReadTokens:  usage.ImageCacheReadTokens,
+		CacheReadTokens:       usage.CacheReadInputTokens,
+		OutputTokens:          usage.OutputTokens,
+		ImageOutputTokens:     usage.ImageOutputTokens,
+	}
+	pricing := &ModelPricing{
+		InputPricePerToken:          5e-6,
+		ImageInputPricePerToken:     8e-6,
+		CacheReadPricePerToken:      1.25e-6,
+		ImageCacheReadPricePerToken: 2e-6,
+		ImageOutputPricePerToken:    30e-6,
+	}
+	cost := (&BillingService{}).computeTokenBreakdown(pricing, tokens, 1, "", false)
+	assert.InDelta(t, 8000*5e-6, cost.InputCost, 1e-12, "uncached text input")
+	assert.InDelta(t, 880*8e-6, cost.ImageInputCost, 1e-12, "uncached image input")
+	assert.InDelta(t, 1000*1.25e-6+120*2e-6, cost.CacheReadCost, 1e-12, "cached text and image input")
+	assert.InDelta(t, 18000*30e-6, cost.ImageOutputCost, 1e-12, "image output")
 }
 
 func TestExtractOpenAIUsageFromJSONBytes_BaseUsageHasImageTokensNoOverride(t *testing.T) {

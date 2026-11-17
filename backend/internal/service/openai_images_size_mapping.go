@@ -12,6 +12,9 @@ import (
 const imageSizeMappingMaxSide = 65536
 
 func imageSizeMappingEnabled(rule *ParameterPricing) bool {
+	if rule == nil {
+		return false
+	}
 	for _, factor := range rule.Factors {
 		if factor.Key == "resolution" || factor.Key == "aspect_ratio" {
 			return true

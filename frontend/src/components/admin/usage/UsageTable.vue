@@ -415,7 +415,7 @@
       }"
     >
       <div class="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
-        :class="tooltipData?.billing_mode === 'parameter' || tooltipData?.billing_mode === 'video_token' ? 'w-80 max-w-[calc(100vw-16px)] whitespace-normal' : 'whitespace-nowrap'">
+        :class="tooltipData?.billing_mode === 'parameter' || tooltipData?.billing_mode === 'video_token' || tooltipData?.parameter_pricing?.hold_only ? 'w-80 max-w-[calc(100vw-16px)] whitespace-normal' : 'whitespace-nowrap'">
         <div class="space-y-1.5">
           <!-- Cost Breakdown -->
           <div class="mb-2 border-b border-gray-700 pb-1.5">
@@ -427,8 +427,19 @@
               <div class="text-gray-400">{{ tooltipData.video_token_pricing.rule_hash.slice(0, 16) }}</div>
             </div>
             <div v-if="tooltipData?.parameter_pricing" class="max-w-sm space-y-1 break-words border-b border-gray-600 pb-2 text-xs text-gray-200">
-              <div>${{ tooltipData.parameter_pricing.rule.base_price }} × {{ Object.values(tooltipData.parameter_pricing.matched_factors).join(' × ') || '1' }} × {{ tooltipData.parameter_pricing.input.quantity }} × {{ tooltipData.parameter_pricing.input.multiplier }} = ${{ tooltipData.parameter_pricing.actual_cost }}</div>
-              <div v-for="(value, key) in tooltipData.parameter_pricing.input.dimensions" :key="key">{{ key }}: {{ value }} (×{{ tooltipData.parameter_pricing.matched_factors[key] }})</div>
+              <div v-if="tooltipData.parameter_pricing.hold_only">
+                {{ t('usage.imageTokenReservation', {
+                  unit: tooltipData.parameter_pricing.hold_per_image,
+                  count: tooltipData.parameter_pricing.input.quantity,
+                  multiplier: tooltipData.parameter_pricing.input.multiplier,
+                  hold: tooltipData.parameter_pricing.total_cost,
+                  actual: tooltipData.actual_cost.toFixed(8),
+                }) }}
+              </div>
+              <template v-else>
+                <div>${{ tooltipData.parameter_pricing.rule.base_price }} × {{ Object.values(tooltipData.parameter_pricing.matched_factors).join(' × ') || '1' }} × {{ tooltipData.parameter_pricing.input.quantity }} × {{ tooltipData.parameter_pricing.input.multiplier }} = ${{ tooltipData.parameter_pricing.actual_cost }}</div>
+                <div v-for="(value, key) in tooltipData.parameter_pricing.input.dimensions" :key="key">{{ key }}: {{ value }} (×{{ tooltipData.parameter_pricing.matched_factors[key] }})</div>
+              </template>
               <div class="text-gray-400">{{ tooltipData.parameter_pricing.rule_hash.slice(0, 16) }}</div>
             </div>
             <div v-if="tooltipData && tooltipData.input_cost > 0" class="flex items-center justify-between gap-4">

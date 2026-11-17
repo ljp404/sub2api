@@ -429,6 +429,7 @@ export default {
     imageOutputTokens: 'Image Output Tokens',
     imageOutputTokenPrice: 'Image Output Price',
     imageOutputCost: 'Image Output Cost',
+    imageTokenReservation: 'Reserved: ${unit} × {count} images × {multiplier} = ${hold}; actual charge: ${actual}',
     imageSizeSource: 'Size source',
     imageSizeBreakdown: 'Size breakdown',
     imageSizeSourceOutput: 'Upstream output',

@@ -35,18 +35,19 @@ type ImageParameterBillingRepository interface {
 	ClaimImageParameterSettlements(context.Context) ([]*ImageParameterSettlement, error)
 }
 
-type ImageParameterUncertainHold struct {
+type ImageParameterHoldRecord struct {
 	ID         string            `json:"id"`
 	UserID     int64             `json:"user_id"`
 	APIKeyID   int64             `json:"api_key_id"`
 	AccountID  int64             `json:"account_id"`
 	Amount     string            `json:"amount"`
+	State      string            `json:"state"`
 	Dimensions map[string]string `json:"dimensions"`
 	CreatedAt  time.Time         `json:"created_at"`
 }
 
 type ImageParameterHoldAdminRepository interface {
-	ListUncertainImageParameterHolds(context.Context, int, int) ([]ImageParameterUncertainHold, int64, error)
+	ListImageParameterHolds(context.Context, int, int) ([]ImageParameterHoldRecord, int64, error)
 	ReleaseUncertainImageParameterHold(context.Context, string, int64, string) (int64, error)
 }
 
@@ -181,7 +182,7 @@ func (s *OpenAIGatewayService) reconcileImageParameterBilling(ctx context.Contex
 								rate = *item.Usage.AccountRateMultiplier
 							}
 							finalizePostUsageBilling(billingCtx, &postUsageBillingParams{
-								Cost: parameterPricingCost(item.Command.ParameterPricing),
+								Cost: imageHoldSettlementCost(item),
 								User: key.User, APIKey: key, Account: account,
 								AccountRateMultiplier: rate, APIKeyService: keys, Platform: PlatformOpenAI,
 							}, s.billingDeps(), result)
@@ -195,4 +196,29 @@ func (s *OpenAIGatewayService) reconcileImageParameterBilling(ctx context.Contex
 			writeUsageLogBestEffort(billingCtx, s.usageLogRepo, item.Usage, "service.image_parameter")
 		}()
 	}
+}
+
+func imageHoldSettlementCost(item *ImageParameterSettlement) *CostBreakdown {
+	if item != nil && item.Command != nil && item.Command.ParameterPricing != nil &&
+		item.Command.ParameterPricing.HoldOnly && item.Usage != nil {
+		mode := string(BillingModeToken)
+		if item.Usage.BillingMode != nil {
+			mode = *item.Usage.BillingMode
+		}
+		return &CostBreakdown{
+			BillingMode: mode,
+			InputCost: item.Usage.InputCost,
+			ImageInputCost: item.Usage.ImageInputCost,
+			OutputCost: item.Usage.OutputCost,
+			ImageOutputCost: item.Usage.ImageOutputCost,
+			CacheCreationCost: item.Usage.CacheCreationCost,
+			CacheReadCost: item.Usage.CacheReadCost,
+			TotalCost: item.Usage.TotalCost,
+			ActualCost: item.Usage.ActualCost,
+		}
+	}
+	if item == nil || item.Command == nil {
+		return &CostBreakdown{}
+	}
+	return parameterPricingCost(item.Command.ParameterPricing)
 }

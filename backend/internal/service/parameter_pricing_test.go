@@ -326,6 +326,7 @@ func TestPrepareParameterPricingForGeminiModels(t *testing.T) {
 	require.Equal(t, "16:9", quote.Input.Dimensions["aspect_ratio"])
 	require.Equal(t, "0.05000000", quote.ActualCost)
 
+	quote.HoldID = "gemini-image-hold"
 	cost := (&GatewayService{billingService: newTestBillingServiceForResolver()}).calculateImageCost(
 		ctx,
 		&ForwardResult{ImageCount: 1, ParameterQuote: quote},
@@ -335,6 +336,21 @@ func TestPrepareParameterPricingForGeminiModels(t *testing.T) {
 	)
 	require.Equal(t, string(BillingModeParameter), cost.BillingMode)
 	require.Equal(t, "0.05000000", cost.ParameterPricing.ActualCost)
+	require.Equal(t, "gemini-image-hold", cost.ParameterPricing.HoldID)
+}
+
+func TestGeminiParameterPricingOnlyPassesRestrictionForImageEndpoint(t *testing.T) {
+	rule := &ParameterPricing{Version: 1, Unit: "image", BasePrice: "0.05"}
+	channel := Channel{ID: 1, Status: StatusActive, GroupIDs: []int64{1}, ModelPricing: []ChannelModelPricing{
+		{Platform: PlatformGemini, Models: []string{"gemini-3-pro-image"}, BillingMode: BillingModeParameter, ParameterPricing: rule},
+	}}
+	channelService := newTestChannelService(makeStandardRepo(channel, map[int64]string{1: PlatformComposite}))
+	ctx := context.Background()
+
+	require.True(t, channelService.IsModelRestricted(ctx, 1, "gemini-3-pro-image"))
+	require.False(t, channelService.IsModelRestricted(
+		WithGeminiImageGenerationEndpoint(ctx), 1, "gemini-3-pro-image",
+	))
 }
 
 func TestParameterPricingSeparateModelsWithoutVariant(t *testing.T) {

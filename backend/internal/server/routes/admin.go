@@ -716,7 +716,8 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.GET("/cleanup-tasks", h.Admin.Usage.ListCleanupTasks)
 		usage.POST("/cleanup-tasks", h.Admin.Usage.CreateCleanupTask)
 		usage.POST("/cleanup-tasks/:id/cancel", h.Admin.Usage.CancelCleanupTask)
-		usage.GET("/image-holds/uncertain", h.Admin.Usage.ListUncertainImageHolds)
+		usage.GET("/image-holds", h.Admin.Usage.ListImageHolds)
+		usage.GET("/image-holds/uncertain", h.Admin.Usage.ListImageHolds)
 		usage.POST("/image-holds/:id/release", h.Admin.Usage.ReleaseUncertainImageHold)
 	}
 }

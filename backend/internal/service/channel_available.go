@@ -140,7 +140,7 @@ func pricingNeedsFallback(p *ChannelModelPricing) bool {
 	}
 	if p.InputPrice != nil || p.OutputPrice != nil ||
 		p.CacheWritePrice != nil || p.CacheWrite1hPrice != nil || p.CacheReadPrice != nil ||
-		p.ImageOutputPrice != nil || p.PerRequestPrice != nil {
+		p.ImageCacheReadPrice != nil || p.ImageOutputPrice != nil || p.PerRequestPrice != nil {
 		return false
 	}
 	for _, iv := range p.Intervals {
@@ -183,6 +183,7 @@ func synthesizePricingFromLiteLLM(lp *LiteLLMModelPricing, existing *ChannelMode
 			ImageOutputPrice:           nonZeroPtr(lp.OutputCostPerImageToken),
 			InputPrice:                 nonZeroPtr(lp.InputCostPerToken),
 			OutputPrice:                nonZeroPtr(lp.OutputCostPerToken),
+			ImageCacheReadPrice:        nonZeroPtr(lp.CacheReadInputImageTokenCost),
 			ReasoningEffortMultipliers: reasoningEffortMultipliersFromPricing(existing),
 		}
 	}
@@ -193,6 +194,7 @@ func synthesizePricingFromLiteLLM(lp *LiteLLMModelPricing, existing *ChannelMode
 		CacheWritePrice:            nonZeroPtr(lp.CacheCreationInputTokenCost),
 		CacheWrite1hPrice:          nonZeroPtr(lp.CacheCreationInputTokenCostAbove1hr),
 		CacheReadPrice:             nonZeroPtr(lp.CacheReadInputTokenCost),
+		ImageCacheReadPrice:        nonZeroPtr(lp.CacheReadInputImageTokenCost),
 		ImageOutputPrice:           nonZeroPtr(lp.OutputCostPerImageToken),
 		ReasoningEffortMultipliers: reasoningEffortMultipliersFromPricing(existing),
 	}

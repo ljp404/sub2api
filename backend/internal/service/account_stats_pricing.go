@@ -233,6 +233,7 @@ func calculateTokenStatsCost(pricing *ChannelModelPricing, tokens UsageTokens) *
 				CacheWritePrice:   iv.CacheWritePrice,
 				CacheWrite1hPrice: iv.CacheWrite1hPrice,
 				CacheReadPrice:    iv.CacheReadPrice,
+				ImageCacheReadPrice: pricing.ImageCacheReadPrice,
 				PerRequestPrice:   iv.PerRequestPrice,
 			}
 		}
@@ -251,10 +252,17 @@ func calculateTokenStatsCost(pricing *ChannelModelPricing, tokens UsageTokens) *
 				float64(cache1h)*deref(p.CacheWrite1hPrice)
 		}
 	}
+	imageCacheReadPrice := p.ImageCacheReadPrice
+	if imageCacheReadPrice == nil {
+		imageCacheReadPrice = p.CacheReadPrice
+	}
+	imageCachedTokens := min(max(tokens.ImageCacheReadTokens, 0), max(tokens.CacheReadTokens, 0))
+	cacheReadCost := float64(max(tokens.CacheReadTokens-imageCachedTokens, 0))*deref(p.CacheReadPrice) +
+		float64(imageCachedTokens)*deref(imageCacheReadPrice)
 	cost := float64(tokens.InputTokens)*deref(p.InputPrice) +
 		float64(tokens.OutputTokens)*deref(p.OutputPrice) +
 		cacheCreationCost +
-		float64(tokens.CacheReadTokens)*deref(p.CacheReadPrice) +
+		cacheReadCost +
 		float64(tokens.ImageOutputTokens)*deref(p.ImageOutputPrice)
 	if cost <= 0 {
 		return nil

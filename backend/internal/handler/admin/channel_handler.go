@@ -105,7 +105,9 @@ type channelModelPricingRequest struct {
 	FlexMultiplier             *float64                   `json:"flex_multiplier" binding:"omitempty,gt=0"`
 	ReasoningEffortMultipliers map[string]float64         `json:"reasoning_effort_multipliers"`
 	ImageInputPrice            *float64                   `json:"image_input_price" binding:"omitempty,min=0"`
+	ImageCacheReadPrice        *float64                   `json:"image_cache_read_price" binding:"omitempty,min=0"`
 	ImageOutputPrice           *float64                   `json:"image_output_price" binding:"omitempty,min=0"`
+	ImageTokenHoldPrice        *float64                   `json:"image_token_hold_price" binding:"omitempty,min=0"`
 	PerRequestPrice            *float64                   `json:"per_request_price" binding:"omitempty,min=0"`
 	Intervals                  []pricingIntervalRequest   `json:"intervals"`
 	TimePricing                *channelTimePricingRequest `json:"time_pricing"`
@@ -182,7 +184,9 @@ type channelModelPricingResponse struct {
 	FlexMultiplier             *float64                    `json:"flex_multiplier"`
 	ReasoningEffortMultipliers map[string]float64          `json:"reasoning_effort_multipliers"`
 	ImageInputPrice            *float64                    `json:"image_input_price"`
+	ImageCacheReadPrice        *float64                    `json:"image_cache_read_price"`
 	ImageOutputPrice           *float64                    `json:"image_output_price"`
+	ImageTokenHoldPrice        *float64                    `json:"image_token_hold_price"`
 	PerRequestPrice            *float64                    `json:"per_request_price"`
 	Intervals                  []pricingIntervalResponse   `json:"intervals"`
 	TimePricing                *channelTimePricingResponse `json:"time_pricing"`
@@ -315,7 +319,9 @@ func pricingToResponse(p *service.ChannelModelPricing) channelModelPricingRespon
 		FlexMultiplier:             p.FlexMultiplier,
 		ReasoningEffortMultipliers: p.ReasoningEffortMultipliers,
 		ImageInputPrice:            p.ImageInputPrice,
+		ImageCacheReadPrice:        p.ImageCacheReadPrice,
 		ImageOutputPrice:           p.ImageOutputPrice,
+		ImageTokenHoldPrice:        imageTokenHoldPriceOrDefault(p.ImageTokenHoldPrice),
 		PerRequestPrice:            p.PerRequestPrice,
 		Intervals:                  intervals,
 		TimePricing:                timePricingToResponse(p.TimePricing),
@@ -323,6 +329,14 @@ func pricingToResponse(p *service.ChannelModelPricing) channelModelPricingRespon
 		VideoTokenPricing:          service.CloneVideoTokenPricing(p.VideoTokenPricing),
 		VideoTaskPricing:           service.CloneVideoTaskPricing(p.VideoTaskPricing),
 	}
+}
+
+func imageTokenHoldPriceOrDefault(price *float64) *float64 {
+	if price != nil {
+		return price
+	}
+	defaultPrice := service.DefaultImageTokenHoldPrice
+	return &defaultPrice
 }
 
 func timePricingToResponse(value *service.ChannelTimePricing) *channelTimePricingResponse {
@@ -416,7 +430,9 @@ func pricingRequestToService(reqs []channelModelPricingRequest, allowChannelMult
 			FlexMultiplier:             flexMultiplier,
 			ReasoningEffortMultipliers: r.ReasoningEffortMultipliers,
 			ImageInputPrice:            r.ImageInputPrice,
+			ImageCacheReadPrice:        r.ImageCacheReadPrice,
 			ImageOutputPrice:           r.ImageOutputPrice,
+			ImageTokenHoldPrice:        imageTokenHoldPriceOrDefault(r.ImageTokenHoldPrice),
 			PerRequestPrice:            r.PerRequestPrice,
 			Intervals:                  intervals,
 			TimePricing:                timePricingRequestToService(r.TimePricing),
@@ -675,6 +691,7 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 		"cache_read_price":             pricing.CacheReadPricePerToken,
 		"reasoning_effort_multipliers": pricing.ReasoningEffortMultipliers,
 		"image_input_price":            pricing.ImageInputPricePerToken,
+		"image_cache_read_price":       pricing.ImageCacheReadPricePerToken,
 		"image_output_price":           pricing.ImageOutputPricePerToken,
 	})
 }

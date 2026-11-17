@@ -2,11 +2,15 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/shopspring/decimal"
 	"github.com/tidwall/gjson"
 )
 
@@ -111,6 +115,19 @@ func (s *OpenAIGatewayService) PrepareImageParameterPricing(ctx context.Context,
 		if resolved == nil {
 			continue
 		}
+		if resolved.Mode == BillingModeToken {
+			if key.Group != nil && (key.Group.IsSubscriptionType() ||
+				(s.cfg != nil && s.cfg.RunMode == config.RunModeSimple)) {
+				return nil
+			}
+			holdPrice := serviceImageTokenHoldPrice(resolved.channelPricing)
+			quote, err := s.calculateImageTokenHoldQuote(ctx, key, req.N, holdPrice)
+			if err != nil {
+				return err
+			}
+			req.ParameterQuote = quote
+			return nil
+		}
 		if resolved.Mode != BillingModeParameter {
 			return nil
 		}
@@ -144,6 +161,50 @@ func (s *OpenAIGatewayService) PrepareImageParameterPricing(ctx context.Context,
 		return nil
 	}
 	return nil
+}
+
+func serviceImageTokenHoldPrice(pricing *ChannelModelPricing) float64 {
+	if pricing != nil && pricing.ImageTokenHoldPrice != nil {
+		return *pricing.ImageTokenHoldPrice
+	}
+	return DefaultImageTokenHoldPrice
+}
+
+func (s *OpenAIGatewayService) calculateImageTokenHoldQuote(
+	ctx context.Context,
+	key *APIKey,
+	quantity int,
+	unitPrice float64,
+) (*ParameterPricingSnapshot, error) {
+	if quantity < 1 || unitPrice < 0 {
+		return nil, fmt.Errorf("invalid image token reservation amount")
+	}
+	rate := 1.0
+	if key.Group != nil {
+		rate = key.Group.RateMultiplier
+		if key.GroupID != nil && key.User != nil {
+			rate = s.ResolveUserGroupRateMultiplier(ctx, key.User.ID, *key.GroupID, rate)
+		}
+	}
+	rate, _ = computePeakAwareMultipliers(key, rate, time.Now())
+	multiplier := decimal.NewFromFloat(rate)
+	perImage := decimal.NewFromFloat(unitPrice)
+	amount := perImage.Mul(decimal.NewFromInt(int64(quantity))).Mul(multiplier).Round(8)
+	normalizedUnitPrice := perImage.StringFixed(8)
+	normalizedAmount := amount.StringFixed(8)
+	ruleHashBytes := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%s", normalizedUnitPrice, quantity, multiplier.String())))
+	return &ParameterPricingSnapshot{
+		RuleHash:     hex.EncodeToString(ruleHashBytes[:]),
+		HoldOnly:     true,
+		HoldPerImage: normalizedUnitPrice,
+		Input: ParameterPricingInput{
+			Quantity:   quantity,
+			Multiplier: multiplier.String(),
+		},
+		UnitPrice:  normalizedUnitPrice,
+		TotalCost:  normalizedAmount,
+		ActualCost: normalizedAmount,
+	}, nil
 }
 
 // PrepareParameterPricing adapts protocol-specific image parameters to the

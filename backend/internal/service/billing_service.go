@@ -102,6 +102,7 @@ type ModelPricing struct {
 	InputPricePerTokenPriority         float64            // priority service tier 下每token输入价格 (USD)
 	ImageInputPricePerToken            float64            // 图片输入 token 价格 (USD)，用于多模态 embedding 等图文不同价场景；为 0 时回退到 InputPricePerToken
 	ImageCacheReadPricePerToken        float64            // 图片缓存输入价格；无独立价格时沿用缓存读取价
+	ImageCacheReadPriceExplicit        bool               // 图片缓存输入价由渠道显式配置，包括显式 0
 	OutputPricePerToken                float64            // 每token输出价格 (USD)
 	OutputPricePerTokenPriority        float64            // priority service tier 下每token输出价格 (USD)
 	CacheCreationPricePerToken         float64            // 缓存创建每token价格 (USD)
@@ -1466,7 +1467,7 @@ func (s *BillingService) getModelPricingAt(model string, pricingAt time.Time) (*
 }
 
 // GetModelPricingWithChannel 获取模型定价，渠道配置的价格覆盖默认值。
-// 与其他 token 字段一致，渠道留空的图片输入/输出价沿用目录价，见 applyChannelImagePriceOverrides。
+// 与其他 token 字段一致，渠道留空的图片输入/缓存读取/输出价沿用目录价，见 applyChannelImagePriceOverrides。
 func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing *ChannelModelPricing) (*ModelPricing, error) {
 	pricing, err := s.GetModelPricing(model)
 	if err != nil {
@@ -1763,7 +1764,7 @@ func (s *BillingService) computeTokenBreakdown(
 	bd.CacheCreationCost = s.computeCacheCreationCost(pricing, tokens, cacheCreationPrice, cacheCreationMultiplier)
 
 	bd.CacheReadCost = float64(tokens.CacheReadTokens) * cacheReadPrice
-	if imageCached := min(max(tokens.ImageCacheReadTokens, 0), max(tokens.CacheReadTokens, 0)); imageCached > 0 && pricing.ImageCacheReadPricePerToken > 0 {
+	if imageCached := min(max(tokens.ImageCacheReadTokens, 0), max(tokens.CacheReadTokens, 0)); imageCached > 0 && (pricing.ImageCacheReadPricePerToken > 0 || pricing.ImageCacheReadPriceExplicit) {
 		bd.CacheReadCost = float64(tokens.CacheReadTokens-imageCached)*cacheReadPrice + float64(imageCached)*pricing.ImageCacheReadPricePerToken
 	}
 

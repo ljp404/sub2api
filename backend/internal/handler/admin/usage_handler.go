@@ -60,7 +60,7 @@ type imageParameterHoldReleaseRequest struct {
 	Reason string `json:"reason" binding:"required"`
 }
 
-func (h *UsageHandler) ListUncertainImageHolds(c *gin.Context) {
+func (h *UsageHandler) ListImageHolds(c *gin.Context) {
 	if h.imageHoldRepo == nil {
 		response.Error(c, http.StatusServiceUnavailable, "Image hold administration unavailable")
 		return
@@ -69,7 +69,7 @@ func (h *UsageHandler) ListUncertainImageHolds(c *gin.Context) {
 	if pageSize > 100 {
 		pageSize = 100
 	}
-	holds, total, err := h.imageHoldRepo.ListUncertainImageParameterHolds(
+	holds, total, err := h.imageHoldRepo.ListImageParameterHolds(
 		c.Request.Context(), pageSize, (page-1)*pageSize,
 	)
 	if err != nil {

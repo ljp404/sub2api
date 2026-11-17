@@ -1971,18 +1971,27 @@ func TestGetModelPricingWithChannel_ExplicitImagePricesOverrideCatalog(t *testin
 			Mode:                    "image_generation",
 			InputCostPerToken:       5e-6,
 			InputCostPerImageToken:  8e-6,
+			CacheReadInputImageTokenCost: 2e-6,
 			OutputCostPerImageToken: 30e-6,
 		},
 	}))
 
 	pricing, err := svc.GetModelPricingWithChannel("gpt-image-2", &ChannelModelPricing{
-		ImageInputPrice:  testPtrFloat64(9e-6),
-		ImageOutputPrice: testPtrFloat64(0),
+		ImageInputPrice:     testPtrFloat64(9e-6),
+		ImageCacheReadPrice: testPtrFloat64(4e-6),
+		ImageOutputPrice:    testPtrFloat64(0),
 	})
 	require.NoError(t, err)
 	require.Equal(t, 0.0, pricing.ImageOutputPricePerToken)
 	require.True(t, pricing.ImageOutputPriceExplicit, "显式 0 仍表示图片输出免费")
 	require.InDelta(t, 9e-6, pricing.ImageInputPricePerToken, 1e-12)
+	require.InDelta(t, 4e-6, pricing.ImageCacheReadPricePerToken, 1e-12)
+
+	cost := svc.computeTokenBreakdown(pricing, UsageTokens{
+		CacheReadTokens:      10,
+		ImageCacheReadTokens: 10,
+	}, 1, "", false)
+	require.InDelta(t, 10*4e-6, cost.CacheReadCost, 1e-12)
 }
 
 func TestComputeTokenBreakdown_ExplicitZeroImagePrice_NoFallback(t *testing.T) {

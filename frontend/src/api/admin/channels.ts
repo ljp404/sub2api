@@ -55,7 +55,9 @@ export interface ChannelModelPricing {
   flex_multiplier?: number | null
   reasoning_effort_multipliers?: Record<string, number> | null
   image_input_price: number | null
+  image_cache_read_price?: number | null
   image_output_price: number | null
+  image_token_hold_price?: number | null
   per_request_price: number | null
   intervals: PricingInterval[]
   time_pricing: ChannelTimePricing | null
@@ -131,6 +133,8 @@ export interface ParameterPricingSnapshot {
   rule: ParameterPricing
   input: ParameterPricingInput
   matched_factors: Record<string, string>
+  hold_only?: boolean
+  hold_per_image?: string
   unit_price: string
   total_cost: string
   actual_cost: string
@@ -262,6 +266,7 @@ export interface ModelDefaultPricing {
   cache_write_1h_price?: number | null
   cache_read_price?: number
   image_input_price?: number
+  image_cache_read_price?: number
   image_output_price?: number
   reasoning_effort_multipliers?: Record<string, number> | null
 }

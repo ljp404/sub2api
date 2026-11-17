@@ -885,7 +885,9 @@ function addPricingEntry(sectionIdx: number) {
     flex_multiplier: null,
     reasoning_effort_multipliers: null,
     image_input_price: null,
+    image_cache_read_price: null,
     image_output_price: null,
+    image_token_hold_price: 0.05,
     per_request_price: null,
     intervals: [],
     time_pricing: createDefaultTimePricingForm()
@@ -924,7 +926,9 @@ async function syncLatestModels(sectionIdx: number) {
       flex_multiplier: null,
       reasoning_effort_multipliers: null,
       image_input_price: null,
+      image_cache_read_price: null,
       image_output_price: null,
+      image_token_hold_price: 0.05,
       per_request_price: null,
       intervals: [],
       time_pricing: createDefaultTimePricingForm()
@@ -991,7 +995,9 @@ function addRulePricingEntry(sectionIdx: number, ruleIndex: number) {
     cache_write_1h_price: null,
     cache_read_price: null,
     image_input_price: null,
+    image_cache_read_price: null,
     image_output_price: null,
+    image_token_hold_price: 0.05,
     per_request_price: null,
     intervals: [],
     time_pricing: createDefaultTimePricingForm()
@@ -1110,6 +1116,7 @@ function accountStatsRulesToAPI(): AccountStatsPricingRule[] {
             cache_read_price: mTokToPerToken(p.cache_read_price),
             reasoning_effort_multipliers: formReasoningEffortMultipliersToAPI(p.reasoning_effort_multipliers),
             image_input_price: mTokToPerToken(p.image_input_price),
+            image_cache_read_price: mTokToPerToken(p.image_cache_read_price),
             image_output_price: mTokToPerToken(p.image_output_price),
             per_request_price: p.per_request_price != null && p.per_request_price !== '' ? Number(p.per_request_price) : null,
             intervals: formIntervalsToAPI(p.intervals || []),
@@ -1159,7 +1166,9 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
         flex_multiplier: entry.flex_multiplier != null && entry.flex_multiplier !== '' ? Number(entry.flex_multiplier) : null,
         reasoning_effort_multipliers: formReasoningEffortMultipliersToAPI(entry.reasoning_effort_multipliers),
         image_input_price: mTokToPerToken(entry.image_input_price),
+        image_cache_read_price: mTokToPerToken(entry.image_cache_read_price),
         image_output_price: mTokToPerToken(entry.image_output_price),
+        image_token_hold_price: entry.image_token_hold_price != null && entry.image_token_hold_price !== '' ? Number(entry.image_token_hold_price) : 0.05,
         per_request_price: entry.per_request_price != null && entry.per_request_price !== '' ? Number(entry.per_request_price) : null,
         intervals: formIntervalsToAPI(entry.intervals || []),
         time_pricing: formTimePricingToAPI(entry.time_pricing)
@@ -1263,7 +1272,9 @@ function apiToForm(channel: Channel): PlatformSection[] {
         flex_multiplier: p.flex_multiplier,
         reasoning_effort_multipliers: p.reasoning_effort_multipliers ? { ...p.reasoning_effort_multipliers } : null,
         image_input_price: perTokenToMTok(p.image_input_price),
+        image_cache_read_price: perTokenToMTok(p.image_cache_read_price),
         image_output_price: perTokenToMTok(p.image_output_price),
+        image_token_hold_price: p.image_token_hold_price ?? 0.05,
         per_request_price: p.per_request_price,
         intervals: apiIntervalsToForm(p.intervals || []),
         time_pricing: apiTimePricingToForm(p.time_pricing)
@@ -1455,7 +1466,9 @@ function distributeRulesToPlatforms(apiRules: AccountStatsPricingRule[]) {
         cache_read_price: perTokenToMTok(p.cache_read_price),
         reasoning_effort_multipliers: p.reasoning_effort_multipliers ? { ...p.reasoning_effort_multipliers } : null,
         image_input_price: perTokenToMTok(p.image_input_price),
+        image_cache_read_price: perTokenToMTok(p.image_cache_read_price),
         image_output_price: perTokenToMTok(p.image_output_price),
+        image_token_hold_price: p.image_token_hold_price ?? 0.05,
         per_request_price: p.per_request_price,
         intervals: apiIntervalsToForm(p.intervals || []),
         time_pricing: createDefaultTimePricingForm()

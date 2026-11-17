@@ -429,6 +429,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.ActualCost = cost.ActualCost
 		usageLog.LongContextBillingApplied = cost.LongContextBillingApplied
 	}
+	if cost != nil && result.ParameterQuote != nil && result.ParameterQuote.HoldOnly {
+		cost.ParameterPricing = result.ParameterQuote
+		usageLog.ParameterPricing = result.ParameterQuote
+	}
 	if isVideoUsage && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = videoMultiplier
 	} else if result.ImageCount > 0 && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
@@ -436,7 +440,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	} else {
 		usageLog.RateMultiplier = multiplier
 	}
-	if cost != nil && cost.ParameterPricing != nil {
+	if cost != nil && cost.ParameterPricing != nil && !cost.ParameterPricing.HoldOnly {
 		usageLog.RateMultiplier, _ = strconv.ParseFloat(cost.ParameterPricing.Input.Multiplier, 64)
 	}
 	if cost != nil && cost.VideoTokenPricing != nil {
@@ -644,7 +648,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeVideoToken {
 		return nil, fmt.Errorf("video token pricing requires a validated Seedance task")
 	}
-	if result != nil && result.ParameterQuote != nil {
+	if result != nil && result.ParameterQuote != nil && !result.ParameterQuote.HoldOnly {
 		snapshot, err := CalculateParameterPricing(result.ParameterQuote.Rule, ParameterPricingInput{
 			Dimensions: result.ParameterQuote.Input.Dimensions,
 			Quantity:   result.ImageCount,

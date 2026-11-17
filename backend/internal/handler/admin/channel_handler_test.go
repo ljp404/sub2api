@@ -247,6 +247,7 @@ func TestChannelToResponse_MultipleEntries(t *testing.T) {
 				Models:           []string{"gemini-2.5-pro"},
 				BillingMode:      service.BillingModeImage,
 				ImageOutputPrice: float64Ptr(0.05),
+				ImageCacheReadPrice: float64Ptr(0.000002),
 				PerRequestPrice:  float64Ptr(0.2),
 			},
 		},
@@ -270,6 +271,7 @@ func TestChannelToResponse_MultipleEntries(t *testing.T) {
 	require.Equal(t, []string{"gemini-2.5-pro"}, resp.ModelPricing[2].Models)
 	require.Equal(t, "image", resp.ModelPricing[2].BillingMode)
 	require.Equal(t, float64Ptr(0.05), resp.ModelPricing[2].ImageOutputPrice)
+	require.Equal(t, float64Ptr(0.000002), resp.ModelPricing[2].ImageCacheReadPrice)
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +330,7 @@ func TestPricingRequestToService_WithAllFields(t *testing.T) {
 			CacheWritePrice:   float64Ptr(0.005),
 			CacheWrite1hPrice: float64Ptr(0.008),
 			CacheReadPrice:    float64Ptr(0.002),
+			ImageCacheReadPrice: float64Ptr(0.000002),
 			ImageOutputPrice:  float64Ptr(0.04),
 			PerRequestPrice:   float64Ptr(0.5),
 		},
@@ -344,6 +347,7 @@ func TestPricingRequestToService_WithAllFields(t *testing.T) {
 	require.Equal(t, float64Ptr(0.005), r.CacheWritePrice)
 	require.Equal(t, float64Ptr(0.008), r.CacheWrite1hPrice)
 	require.Equal(t, float64Ptr(0.002), r.CacheReadPrice)
+	require.Equal(t, float64Ptr(0.000002), r.ImageCacheReadPrice)
 	require.Equal(t, float64Ptr(0.04), r.ImageOutputPrice)
 	require.Equal(t, float64Ptr(0.5), r.PerRequestPrice)
 }

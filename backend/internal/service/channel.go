@@ -20,6 +20,8 @@ const (
 	BillingModeVideoToken BillingMode = "video_token"
 )
 
+const DefaultImageTokenHoldPrice float64 = 0.05
+
 // IsValid 检查 BillingMode 是否为合法值
 func (m BillingMode) IsValid() bool {
 	switch m {
@@ -104,7 +106,9 @@ type ChannelModelPricing struct {
 	FlexMultiplier             *float64            `json:"flex_multiplier"`
 	ReasoningEffortMultipliers map[string]float64  `json:"reasoning_effort_multipliers,omitempty"`
 	ImageInputPrice            *float64            `json:"image_input_price"`
+	ImageCacheReadPrice        *float64            `json:"image_cache_read_price"`
 	ImageOutputPrice           *float64            `json:"image_output_price"`
+	ImageTokenHoldPrice        *float64            `json:"image_token_hold_price"`
 	PerRequestPrice            *float64            `json:"per_request_price"`
 	Intervals                  []PricingInterval   `json:"intervals"`
 	TimePricing                *ChannelTimePricing `json:"time_pricing,omitempty"`

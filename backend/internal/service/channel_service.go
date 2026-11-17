@@ -593,7 +593,7 @@ func (s *ChannelService) IsModelRestricted(ctx context.Context, groupID int64, m
 			return true
 		}
 	}
-	if !OpenAIImagesEndpointFromContext(ctx) {
+	if !OpenAIImagesEndpointFromContext(ctx) && !GeminiImageGenerationEndpointFromContext(ctx) {
 		p := lookupPricingAcrossPlatforms(lk.cache, groupID, lk.platform, strings.ToLower(model))
 		if p != nil && p.BillingMode == BillingModeParameter {
 			return true
@@ -803,8 +803,9 @@ func checkBillingModeRequirements(p ChannelModelPricing) error {
 		return infraerrors.BadRequest("INVALID_VIDEO_TOKEN_PRICING", "video_token_pricing requires video_token billing mode")
 	}
 	if p.BillingMode == BillingModeParameter {
-		if p.Platform != PlatformOpenAI || len(p.Intervals) > 0 || len(p.ReasoningEffortMultipliers) > 0 {
-			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", "parameter pricing requires OpenAI, without legacy intervals or reasoning multipliers")
+		if (p.Platform != PlatformOpenAI && p.Platform != PlatformGemini) ||
+			len(p.Intervals) > 0 || len(p.ReasoningEffortMultipliers) > 0 {
+			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", "parameter pricing requires OpenAI or Gemini, without legacy intervals or reasoning multipliers")
 		}
 		if err := ValidateParameterPricing(p.ParameterPricing); err != nil {
 			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", err.Error())
@@ -834,7 +835,9 @@ func checkPricesNotNegative(p ChannelModelPricing) error {
 		{"cache_write_1h_price", p.CacheWrite1hPrice},
 		{"cache_read_price", p.CacheReadPrice},
 		{"image_input_price", p.ImageInputPrice},
+		{"image_cache_read_price", p.ImageCacheReadPrice},
 		{"image_output_price", p.ImageOutputPrice},
+		{"image_token_hold_price", p.ImageTokenHoldPrice},
 		{"per_request_price", p.PerRequestPrice},
 	}
 	for _, c := range checks {

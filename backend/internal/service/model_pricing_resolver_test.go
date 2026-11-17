@@ -726,6 +726,7 @@ func TestFilterValidIntervals(t *testing.T) {
 func withCatalogImagePrices(r *ModelPricingResolver) *ModelPricingResolver {
 	base := r.billingService.fallbackPrices["claude-sonnet-4"]
 	base.ImageInputPricePerToken = 8e-6
+	base.ImageCacheReadPricePerToken = 2e-6
 	base.ImageOutputPricePerToken = 30e-6
 	return r
 }
@@ -748,6 +749,47 @@ func TestApplyTokenOverrides_FlatUnsetImagePricesInheritCatalog(t *testing.T) {
 	require.False(t, resolved.BasePricing.ImageOutputPriceExplicit, "留空不应标记显式")
 	require.InDelta(t, 30e-6, resolved.BasePricing.ImageOutputPricePerToken, 1e-12)
 	require.InDelta(t, 8e-6, resolved.BasePricing.ImageInputPricePerToken, 1e-12)
+	require.False(t, resolved.BasePricing.ImageCacheReadPriceExplicit)
+	require.InDelta(t, 2e-6, resolved.BasePricing.ImageCacheReadPricePerToken, 1e-12)
+}
+
+func TestApplyTokenOverrides_ImageCacheReadPriceOverridesCatalog(t *testing.T) {
+	r := newResolverWithChannel(t, []ChannelModelPricing{{
+		Platform:            "anthropic",
+		Models:              []string{"claude-sonnet-4"},
+		BillingMode:         BillingModeToken,
+		ImageCacheReadPrice: testPtrFloat64(4e-6),
+	}})
+	withCatalogImagePrices(r)
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "claude-sonnet-4",
+		GroupID: groupIDPtr(),
+	})
+
+	require.True(t, resolved.BasePricing.ImageCacheReadPriceExplicit)
+	require.InDelta(t, 4e-6, resolved.BasePricing.ImageCacheReadPricePerToken, 1e-12)
+}
+
+func TestApplyTokenOverrides_ExplicitZeroImageCacheReadPriceStaysZero(t *testing.T) {
+	r := newResolverWithChannel(t, []ChannelModelPricing{{
+		Platform:            "anthropic",
+		Models:              []string{"claude-sonnet-4"},
+		BillingMode:         BillingModeToken,
+		ImageCacheReadPrice: testPtrFloat64(0),
+	}})
+	withCatalogImagePrices(r)
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "claude-sonnet-4",
+		GroupID: groupIDPtr(),
+	})
+	cost := (&BillingService{}).computeTokenBreakdown(resolved.BasePricing, UsageTokens{
+		CacheReadTokens:      10,
+		ImageCacheReadTokens: 10,
+	}, 1, "", false)
+
+	require.True(t, resolved.BasePricing.ImageCacheReadPriceExplicit)
+	require.Zero(t, resolved.BasePricing.ImageCacheReadPricePerToken)
+	require.Zero(t, cost.CacheReadCost)
 }
 
 func TestApplyTokenOverrides_ExplicitZeroImageOutputPriceStaysZero(t *testing.T) {

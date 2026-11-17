@@ -130,6 +130,67 @@ func TestImageParameterSettlementAtomicity(t *testing.T) {
 	}
 }
 
+func TestImageTokenHoldSettlementUsesActualImageCount(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	held := &service.ParameterPricingSnapshot{
+		HoldID:       "token-image-hold",
+		RuleHash:     "token-image-rule",
+		HoldOnly:     true,
+		HoldPerImage: "0.05000000",
+		Input: service.ParameterPricingInput{
+			Quantity:   2,
+			Multiplier: "1",
+		},
+		TotalCost:  "0.10000000",
+		ActualCost: "0.10000000",
+	}
+	final := *held
+	final.HoldID = held.HoldID
+	cmd := &service.UsageBillingCommand{
+		RequestID:        "image-token-1",
+		APIKeyID:         7,
+		UserID:           42,
+		AccountID:        9,
+		ImageCount:       1, // The upstream returned one image although two were requested.
+		BalanceCost:      0.08,
+		ParameterPricing: &final,
+	}
+	cmd.Normalize()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO usage_billing_dedup`).
+		WithArgs(cmd.RequestID, cmd.APIKeyID, cmd.RequestFingerprint).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectQuery(`(?s)SELECT request_fingerprint.*FROM usage_billing_dedup_archive`).
+		WithArgs(cmd.RequestID, cmd.APIKeyID).WillReturnError(sql.ErrNoRows)
+	raw, err := json.Marshal(held)
+	require.NoError(t, err)
+	mock.ExpectQuery(`(?s)SELECT hold_amount,quote,state.*FROM image_parameter_billing_holds.*FOR UPDATE`).
+		WithArgs(held.HoldID).
+		WillReturnRows(sqlmock.NewRows([]string{"hold", "quote", "state", "user", "key", "account"}).
+			AddRow("0.10000000", raw, "settlement_required", int64(42), int64(7), int64(9)))
+	mock.ExpectQuery(`(?s)UPDATE users SET balance=balance\+\$1-\$2.*frozen_balance.*RETURNING balance`).
+		WithArgs("0.10000000", "0.08", int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(9.92))
+	mock.ExpectExec(`UPDATE image_parameter_billing_holds SET state='settled'`).
+		WithArgs(held.HoldID).WillReturnResult(sqlmock.NewResult(0, 1))
+	snapshot, err := json.Marshal(&final)
+	require.NoError(t, err)
+	mock.ExpectExec(`INSERT INTO parameter_billing_snapshots`).
+		WithArgs(cmd.RequestID, cmd.APIKeyID, string(snapshot)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	result, err := (&usageBillingRepository{db: db}).Apply(context.Background(), cmd)
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Equal(t, 9.92, *result.NewBalance)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestImageParameterReleaseIdempotency(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

@@ -133,9 +133,19 @@
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
+              <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageCacheReadPrice') }}</label>
+              <input :value="entry.image_cache_read_price" @input="emitField('image_cache_read_price', ($event.target as HTMLInputElement).value)"
+                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+            </div>
+            <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageTokenPrice') }}</label>
               <input :value="entry.image_output_price" @input="emitField('image_output_price', ($event.target as HTMLInputElement).value)"
                 type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+            </div>
+            <div>
+              <label class="whitespace-nowrap text-xs text-gray-400">{{ t('admin.channels.form.imageTokenHoldPrice') }}</label>
+              <input :value="entry.image_token_hold_price ?? 0.05" @input="emitField('image_token_hold_price', ($event.target as HTMLInputElement).value)"
+                type="number" step="any" min="0" class="input mt-0.5 text-sm" />
             </div>
           </div>
 
@@ -368,11 +378,12 @@ const billingModeOptions = computed(() => [
   { value: 'per_request', label: t('admin.channels.billingMode.perRequest') },
   { value: 'image', label: t('admin.channels.billingMode.image') },
   { value: 'video', label: t('admin.channels.billingMode.video') },
+  ...(props.enableParameterPricing && ['openai', 'composite', 'gemini'].includes(props.platform || '')
+    ? [{ value: 'parameter', label: t('admin.channels.billingMode.parameter') }]
+    : []),
   ...(props.enableParameterPricing && (props.platform === 'openai' || props.platform === 'composite')
-    ? [
-      { value: 'parameter', label: t('admin.channels.billingMode.parameter') },
-      { value: 'video_token', label: t('admin.channels.billingMode.videoToken') },
-    ] : []),
+    ? [{ value: 'video_token', label: t('admin.channels.billingMode.videoToken') }]
+    : []),
 ])
 
 function changeBillingMode(mode: BillingMode) {
@@ -466,7 +477,8 @@ async function onModelsUpdate(newModels: string[]) {
   // 检查是否所有价格字段都为空
   const e = props.entry
   const hasPrice = e.input_price != null || e.output_price != null ||
-                   e.cache_write_price != null || e.cache_write_1h_price != null || e.cache_read_price != null
+                   e.cache_write_price != null || e.cache_write_1h_price != null ||
+                   e.cache_read_price != null || e.image_cache_read_price != null
   if (hasPrice) return
 
   // 查询第一个新增模型的默认价格
@@ -482,6 +494,7 @@ async function onModelsUpdate(newModels: string[]) {
         cache_write_1h_price: perTokenToMTok(result.cache_write_1h_price ?? null),
         cache_read_price: perTokenToMTok(result.cache_read_price ?? null),
         image_input_price: perTokenToMTok(result.image_input_price ?? null),
+        image_cache_read_price: perTokenToMTok(result.image_cache_read_price ?? null),
         image_output_price: perTokenToMTok(result.image_output_price ?? null),
         reasoning_effort_multipliers: props.entry.reasoning_effort_multipliers ?? result.reasoning_effort_multipliers ?? null,
       })
@@ -494,7 +507,7 @@ async function onModelsUpdate(newModels: string[]) {
 
 <style scoped>
 .pricing-default-grid {
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
 }
 
 .collapsible-content {

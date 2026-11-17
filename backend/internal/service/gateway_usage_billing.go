@@ -1205,6 +1205,7 @@ func (s *GatewayService) calculateImageCost(
 			logger.LegacyPrintf("service.gateway", "Calculate image parameter cost failed: %v", err)
 			return &CostBreakdown{ActualCost: 0}
 		}
+		snapshot.HoldID = result.ParameterQuote.HoldID
 		return parameterPricingCost(snapshot)
 	}
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
