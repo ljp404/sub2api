@@ -1119,6 +1119,7 @@ function accountStatsRulesToAPI(): AccountStatsPricingRule[] {
             image_cache_read_price: mTokToPerToken(p.image_cache_read_price),
             image_output_price: mTokToPerToken(p.image_output_price),
             per_request_price: p.per_request_price != null && p.per_request_price !== '' ? Number(p.per_request_price) : null,
+            image_edit_price: p.billing_mode === 'image' && p.image_edit_price != null && p.image_edit_price !== '' ? Number(p.image_edit_price) : null,
             intervals: formIntervalsToAPI(p.intervals || []),
             time_pricing: null
           }))
@@ -1170,6 +1171,7 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
         image_output_price: mTokToPerToken(entry.image_output_price),
         image_token_hold_price: entry.image_token_hold_price != null && entry.image_token_hold_price !== '' ? Number(entry.image_token_hold_price) : 0.05,
         per_request_price: entry.per_request_price != null && entry.per_request_price !== '' ? Number(entry.per_request_price) : null,
+        image_edit_price: entry.billing_mode === 'image' && entry.image_edit_price != null && entry.image_edit_price !== '' ? Number(entry.image_edit_price) : null,
         intervals: formIntervalsToAPI(entry.intervals || []),
         time_pricing: formTimePricingToAPI(entry.time_pricing)
       })
@@ -1276,6 +1278,7 @@ function apiToForm(channel: Channel): PlatformSection[] {
         image_output_price: perTokenToMTok(p.image_output_price),
         image_token_hold_price: p.image_token_hold_price ?? 0.05,
         per_request_price: p.per_request_price,
+        image_edit_price: p.image_edit_price,
         intervals: apiIntervalsToForm(p.intervals || []),
         time_pricing: apiTimePricingToForm(p.time_pricing)
       } as PricingFormEntry))
@@ -1470,6 +1473,7 @@ function distributeRulesToPlatforms(apiRules: AccountStatsPricingRule[]) {
         image_output_price: perTokenToMTok(p.image_output_price),
         image_token_hold_price: p.image_token_hold_price ?? 0.05,
         per_request_price: p.per_request_price,
+        image_edit_price: p.image_edit_price,
         intervals: apiIntervalsToForm(p.intervals || []),
         time_pricing: createDefaultTimePricingForm()
       } as PricingFormEntry))

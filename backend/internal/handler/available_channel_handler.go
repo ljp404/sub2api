@@ -82,6 +82,7 @@ type userSupportedModelPricing struct {
 	ImageInputPrice            *float64                   `json:"image_input_price"`
 	ImageOutputPrice           *float64                   `json:"image_output_price"`
 	PerRequestPrice            *float64                   `json:"per_request_price"`
+	ImageEditPrice             *float64                   `json:"image_edit_price"`
 	Intervals                  []userPricingIntervalDTO   `json:"intervals"`
 }
 
@@ -361,6 +362,7 @@ func toUserPricing(p *service.ChannelModelPricing) *userSupportedModelPricing {
 		ImageInputPrice:            p.ImageInputPrice,
 		ImageOutputPrice:           p.ImageOutputPrice,
 		PerRequestPrice:            p.PerRequestPrice,
+		ImageEditPrice:             p.ImageEditPrice,
 		Intervals:                  intervals,
 	}
 }

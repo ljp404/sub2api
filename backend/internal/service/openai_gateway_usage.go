@@ -509,6 +509,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
 			tokens, cost.TotalCost, pricingAt,
 			accountStatsLongContextPricingEnabled(longContextBillingGate) && !modelLongContextExempt,
+			result.ImageEndpoint && result.ImageEdit,
 		)
 	}
 
@@ -845,6 +846,24 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 ) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
+	if result.ImageEndpoint && result.ImageEdit && resolved != nil &&
+		resolved.Mode == BillingModeImage && resolved.channelPricing != nil &&
+		resolved.channelPricing.ImageEditPrice != nil {
+		// An explicit edit price overrides generation tiers, including a zero price.
+		editPricing := *resolved
+		editPricing.DefaultPerRequestPrice = *resolved.channelPricing.ImageEditPrice
+		editPricing.RequestTiers = nil
+		gid := apiKey.Group.ID
+		cost, err := s.billingService.CalculateCostUnified(CostInput{
+			Ctx: ctx, Model: billingModel, GroupID: &gid, Group: apiKey.Group,
+			RequestCount: result.ImageCount, RateMultiplier: multiplier,
+			Resolver: s.resolver, Resolved: &editPricing,
+			ReasoningEffort: optionalStringValue(result.ReasoningEffort),
+		})
+		if err == nil {
+			return cost
+		}
+	}
 	if resolved != nil && resolved.Source == PricingSourceGroup &&
 		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage) {
 		gid := apiKey.Group.ID

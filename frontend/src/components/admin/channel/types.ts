@@ -21,6 +21,7 @@ export interface IntervalFormEntry {
 }
 
 export interface PricingFormEntry {
+  image_edit_price?: number | string | null
   platform?: string
   video_token_pricing?: VideoTokenPricing | null
   video_task_pricing?: VideoTaskPricing | null

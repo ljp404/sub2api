@@ -4457,6 +4457,7 @@ const groupPricingFromAPI = (
     image_cache_read_price: perTokenToMTok(entry.image_cache_read_price),
     image_output_price: perTokenToMTok(entry.image_output_price),
     per_request_price: entry.per_request_price,
+    image_edit_price: entry.image_edit_price,
     intervals: apiIntervalsToForm(entry.intervals || []),
     time_pricing: createDefaultTimePricingForm(),
   }));
@@ -4492,6 +4493,7 @@ const groupPricingToAPI = (
       image_cache_read_price: mTokToPerToken(entry.image_cache_read_price),
       image_output_price: mTokToPerToken(entry.image_output_price),
       per_request_price: toNullableNumber(entry.per_request_price),
+      image_edit_price: entry.billing_mode === "image" ? toNullableNumber(entry.image_edit_price) : null,
       intervals:
         entry.billing_mode === "token"
           ? []

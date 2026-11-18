@@ -784,6 +784,9 @@ func validatePricingBillingMode(pricing []ChannelModelPricing) error {
 }
 
 func checkBillingModeRequirements(p ChannelModelPricing) error {
+	if p.ImageEditPrice != nil && p.BillingMode != BillingModeImage {
+		return infraerrors.BadRequest("INVALID_IMAGE_EDIT_PRICE", "image_edit_price requires image billing mode")
+	}
 	if p.VideoTaskPricing != nil {
 		if p.BillingMode != BillingModeVideo {
 			return infraerrors.BadRequest("INVALID_VIDEO_TASK_PRICING", "video_task_pricing requires video billing mode")
@@ -839,6 +842,7 @@ func checkPricesNotNegative(p ChannelModelPricing) error {
 		{"image_output_price", p.ImageOutputPrice},
 		{"image_token_hold_price", p.ImageTokenHoldPrice},
 		{"per_request_price", p.PerRequestPrice},
+		{"image_edit_price", p.ImageEditPrice},
 	}
 	for _, c := range checks {
 		if c.val != nil && *c.val < 0 {

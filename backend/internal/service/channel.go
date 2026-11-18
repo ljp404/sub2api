@@ -110,6 +110,7 @@ type ChannelModelPricing struct {
 	ImageOutputPrice           *float64            `json:"image_output_price"`
 	ImageTokenHoldPrice        *float64            `json:"image_token_hold_price"`
 	PerRequestPrice            *float64            `json:"per_request_price"`
+	ImageEditPrice             *float64            `json:"image_edit_price"`
 	Intervals                  []PricingInterval   `json:"intervals"`
 	TimePricing                *ChannelTimePricing `json:"time_pricing,omitempty"`
 	ParameterPricing           *ParameterPricing   `json:"parameter_pricing,omitempty"`

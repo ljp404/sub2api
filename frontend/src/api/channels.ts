@@ -39,6 +39,7 @@ export interface UserPricingInterval {
 }
 
 export interface UserSupportedModelPricing {
+  image_edit_price?: number | null
   video_task_pricing?: import('./admin/channels').VideoTaskPricing | null
   billing_mode: BillingMode
   input_price: number | null

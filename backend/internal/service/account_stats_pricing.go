@@ -41,6 +41,26 @@ func resolveAccountStatsCost(
 	if len(reasoningEfforts) > 0 {
 		reasoningEffort = reasoningEfforts[0]
 	}
+	return resolveAccountStatsRequestCost(ctx, channelService, billingService, accountID, groupID,
+		upstreamModel, tokens, requestCount, totalCost, serviceTier, pricingAt,
+		longContextPricingEnabled, reasoningEffort, false)
+}
+
+func resolveAccountStatsRequestCost(
+	ctx context.Context,
+	channelService *ChannelService,
+	billingService *BillingService,
+	accountID, groupID int64,
+	upstreamModel string,
+	tokens UsageTokens,
+	requestCount int,
+	totalCost float64,
+	serviceTier string,
+	pricingAt time.Time,
+	longContextPricingEnabled bool,
+	reasoningEffort string,
+	imageEdit bool,
+) *float64 {
 	if channelService == nil || upstreamModel == "" {
 		return nil
 	}
@@ -52,7 +72,7 @@ func resolveAccountStatsCost(
 	platform := channelService.GetGroupPlatform(ctx, groupID)
 
 	// 优先级 1：自定义规则（始终尝试）
-	if cost := tryCustomRules(channel, accountID, groupID, platform, upstreamModel, tokens, requestCount, reasoningEffort); cost != nil {
+	if cost := tryCustomRequestRules(channel, accountID, groupID, platform, upstreamModel, tokens, requestCount, reasoningEffort, imageEdit); cost != nil {
 		return cost
 	}
 
@@ -114,6 +134,14 @@ func tryCustomRules(
 	if len(reasoningEfforts) > 0 {
 		reasoningEffort = reasoningEfforts[0]
 	}
+	return tryCustomRequestRules(channel, accountID, groupID, platform, model, tokens, requestCount, reasoningEffort, false)
+}
+
+func tryCustomRequestRules(
+	channel *Channel, accountID, groupID int64,
+	platform, model string, tokens UsageTokens, requestCount int,
+	reasoningEffort string, imageEdit bool,
+) *float64 {
 	modelLower := strings.ToLower(model)
 	for _, rule := range channel.AccountStatsPricingRules {
 		if !matchAccountStatsRule(&rule, accountID, groupID) {
@@ -124,6 +152,10 @@ func tryCustomRules(
 			continue // 规则匹配但模型不在规则定价中，继续下一条
 		}
 		cost := calculateStatsCost(pricing, tokens, requestCount)
+		if imageEdit && pricing.BillingMode == BillingModeImage && pricing.ImageEditPrice != nil {
+			editCost := *pricing.ImageEditPrice * float64(max(requestCount, 1))
+			cost = &editCost
+		}
 		if cost != nil {
 			*cost *= reasoningEffortBillingMultiplier(reasoningEffort, pricing.ReasoningEffortMultipliers)
 		}
@@ -283,6 +315,7 @@ func applyAccountStatsCost(
 	totalCost float64,
 	pricingAt time.Time,
 	longContextPricingEnabled bool,
+	imageEdits ...bool,
 ) {
 	model := upstreamModel
 	if model == "" {
@@ -300,8 +333,10 @@ func applyAccountStatsCost(
 	if usageLog != nil && usageLog.ReasoningEffort != nil {
 		reasoningEffort = *usageLog.ReasoningEffort
 	}
-	usageLog.AccountStatsCost = resolveAccountStatsCost(
+	imageEdit := len(imageEdits) > 0 && imageEdits[0]
+	usageLog.AccountStatsCost = resolveAccountStatsRequestCost(
 		ctx, cs, bs, accountID, groupID, model, tokens, requestCount, totalCost, serviceTier, pricingAt, longContextPricingEnabled, reasoningEffort,
+		imageEdit,
 	)
 }
 

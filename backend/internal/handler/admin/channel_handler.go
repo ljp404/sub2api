@@ -109,6 +109,7 @@ type channelModelPricingRequest struct {
 	ImageOutputPrice           *float64                   `json:"image_output_price" binding:"omitempty,min=0"`
 	ImageTokenHoldPrice        *float64                   `json:"image_token_hold_price" binding:"omitempty,min=0"`
 	PerRequestPrice            *float64                   `json:"per_request_price" binding:"omitempty,min=0"`
+	ImageEditPrice             *float64                   `json:"image_edit_price" binding:"omitempty,min=0"`
 	Intervals                  []pricingIntervalRequest   `json:"intervals"`
 	TimePricing                *channelTimePricingRequest `json:"time_pricing"`
 	ParameterPricing           *service.ParameterPricing  `json:"parameter_pricing"`
@@ -188,6 +189,7 @@ type channelModelPricingResponse struct {
 	ImageOutputPrice           *float64                    `json:"image_output_price"`
 	ImageTokenHoldPrice        *float64                    `json:"image_token_hold_price"`
 	PerRequestPrice            *float64                    `json:"per_request_price"`
+	ImageEditPrice             *float64                    `json:"image_edit_price"`
 	Intervals                  []pricingIntervalResponse   `json:"intervals"`
 	TimePricing                *channelTimePricingResponse `json:"time_pricing"`
 	ParameterPricing           *service.ParameterPricing   `json:"parameter_pricing,omitempty"`
@@ -323,6 +325,7 @@ func pricingToResponse(p *service.ChannelModelPricing) channelModelPricingRespon
 		ImageOutputPrice:           p.ImageOutputPrice,
 		ImageTokenHoldPrice:        imageTokenHoldPriceOrDefault(p.ImageTokenHoldPrice),
 		PerRequestPrice:            p.PerRequestPrice,
+		ImageEditPrice:             p.ImageEditPrice,
 		Intervals:                  intervals,
 		TimePricing:                timePricingToResponse(p.TimePricing),
 		ParameterPricing:           service.CloneParameterPricing(p.ParameterPricing),
@@ -434,6 +437,7 @@ func pricingRequestToService(reqs []channelModelPricingRequest, allowChannelMult
 			ImageOutputPrice:           r.ImageOutputPrice,
 			ImageTokenHoldPrice:        imageTokenHoldPriceOrDefault(r.ImageTokenHoldPrice),
 			PerRequestPrice:            r.PerRequestPrice,
+			ImageEditPrice:             r.ImageEditPrice,
 			Intervals:                  intervals,
 			TimePricing:                timePricingRequestToService(r.TimePricing),
 			ParameterPricing:           service.CloneParameterPricing(r.ParameterPricing),

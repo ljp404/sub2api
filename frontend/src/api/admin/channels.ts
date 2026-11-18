@@ -39,6 +39,7 @@ export interface ChannelTimePricing {
 }
 
 export interface ChannelModelPricing {
+  image_edit_price?: number | null
   video_token_pricing?: VideoTokenPricing | null
   video_task_pricing?: VideoTaskPricing | null
   parameter_pricing?: ParameterPricing | null
