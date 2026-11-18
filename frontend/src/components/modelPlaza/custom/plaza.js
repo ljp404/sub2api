@@ -1,6 +1,7 @@
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { formatScaled, resolveIntervalPrices } from '@/utils/pricing'
+import geminiIcon from './gemini.svg?raw'
 
 export function mountPlaza(root, fetchPlaza, authenticated) {
   const lifecycle = new AbortController()
@@ -22,6 +23,8 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     },
   }
   const ASSETS = {
+    gemini: `data:image/svg+xml,${encodeURIComponent(geminiIcon)}`,
+    google: `data:image/svg+xml,${encodeURIComponent(geminiIcon)}`,
     doubao: `data:image/svg+xml,${encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
         '<path fill="#1E37FC" d="M5.31 15.756c.172-3.75 1.883-5.999 2.549-6.739-3.26 2.058-5.425 5.658-6.358 8.308v1.12C1.501 21.513 4.226 24 7.59 24a6.59 6.59 0 002.2-.375c.353-.12.7-.248 1.039-.378.913-.899 1.65-1.91 2.243-2.992-4.877 2.431-7.974.072-7.763-4.5l.002.001z"/>' +
@@ -121,6 +124,8 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
   const PROVIDER_ICONS = new Set([
     'openai',
     'anthropic',
+    'gemini',
+    'google',
     'kimi',
     'moonshot',
     'deepseek',

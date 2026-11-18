@@ -108,6 +108,8 @@ describe('custom model plaza provider icons', () => {
   })
 
   it.each([
+    ['gemini', 'Google'],
+    ['google', 'Google'],
     ['kimi', 'Kimi'],
     ['deepseek', 'DeepSeek'],
     ['minimax', 'MiniMax'],
@@ -156,6 +158,12 @@ describe('custom model plaza provider icons', () => {
       expect(cardIcon?.getAttribute('alt')).toBe(name)
       expect(filterIcon?.getAttribute('src')).toBe(cardIcon?.getAttribute('src'))
       expect(root.querySelector('.model-card .brand-fallback')).toBeNull()
+      if (platform === 'gemini' || platform === 'google') {
+        const svg = decodeURIComponent(cardIcon.getAttribute('src').split(',')[1])
+        for (const color of ['#3186FF', '#08B962', '#F94543', '#FABC12']) {
+          expect(svg).toContain(color)
+        }
+      }
     } finally {
       dispose()
     }
