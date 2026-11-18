@@ -298,10 +298,16 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
   ) {
     if (mode(variant.model) === 'video' && pricing?.video_task_pricing) {
       const rule = pricing.video_task_pricing
-      const fx = rule.currency === 'CNY' ? Number(rule.cny_per_usd) : 1
+      const isCNY = rule.currency === 'CNY'
       const rate = multiplier(variant, 'per_request_price')
-      const usd = (value) => Number.isFinite(fx) && fx > 0
-        ? formatScaled(Number(value) / fx * rate, 1)
+      const formatter = new Intl.NumberFormat(isCNY ? 'zh-CN' : 'en-US', {
+        style: 'currency',
+        currency: isCNY ? 'CNY' : 'USD',
+        minimumFractionDigits: 0,
+        maximumSignificantDigits: 10,
+      })
+      const displayPrice = (value) => Number.isFinite(Number(value) * rate)
+        ? formatter.format(Number(value) * rate)
         : '—'
       const charges = [
         ['480P / 秒', rule.price_480p_per_second],
@@ -309,7 +315,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         ['2K / 秒（含基础费）', Number(rule.price_768p_per_second) + Number(rule.upgrade_2k_per_second)],
         ['提示词优化 / 次', rule.prompt_polish_price_per_call],
       ]
-      return `<div class="price-box"><table class="prices"><thead><tr><th>价格项</th><th>平台价 / USD</th></tr></thead><tbody>${charges.map(([label, value]) => `<tr><td>${escapeHTML(label)}</td><td class="actual">${usd(value)}</td></tr>`).join('')}</tbody></table></div>${detailed ? `<p class="detail-note">2K 单价 = 768P 基础价 + 2K 升级附加费。实际费用 =（每秒价格 × 视频秒数 + 已启用的提示词优化费）× 倍率。</p><p class="detail-note">提示词优化默认${rule.prompt_polish_default_enabled ? '开启' : '关闭'}，仅开启时计费。${rule.currency === 'CNY' ? `按配置汇率 ${escapeHTML(rule.cny_per_usd)} CNY/USD 换算，以上价格已计入所选分组的视频倍率。` : '以上价格已计入所选分组的视频倍率。'}</p>` : ''}`
+      return `<div class="price-box"><table class="prices"><thead><tr><th>价格项</th><th>平台价 / ${isCNY ? '人民币' : 'USD'}</th></tr></thead><tbody>${charges.map(([label, value]) => `<tr><td>${escapeHTML(label)}</td><td class="actual">${displayPrice(value)}</td></tr>`).join('')}</tbody></table></div>${detailed ? `<p class="detail-note">2K 单价 = 768P 基础价 + 2K 升级附加费。费用按每秒价格 × 视频秒数，加已启用的提示词优化费计算。以上价格已计入所选分组的视频倍率。</p><p class="detail-note">提示词优化默认${rule.prompt_polish_default_enabled ? '开启' : '关闭'}，仅开启时计费。${isCNY ? `以上为人民币展示价格，结算按配置汇率 ${escapeHTML(rule.cny_per_usd)} CNY/USD 换算为美元。` : ''}</p>` : ''}`
     }
     if (mode(variant.model) === 'video_token') {
       const rule = pricing?.video_token_pricing
@@ -538,8 +544,11 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       g = v.group
     detailGroup = String(g.id)
     $('detail-title').textContent = item.name
+    const displayCurrency = mode(m) === 'video' && m.pricing?.video_task_pricing?.currency === 'CNY'
+      ? '人民币（CNY）'
+      : 'USD'
     $('detail-subtitle').textContent =
-      `${providerNames[item.provider] || item.provider} · USD · ${billingNames[mode(m)] || mode(m)}`
+      `${providerNames[item.provider] || item.provider} · ${displayCurrency} · ${billingNames[mode(m)] || mode(m)}`
     const platformTiers = m.pricing?.intervals || [],
       officialTiers = m.official_pricing?.intervals || []
     const tiers =

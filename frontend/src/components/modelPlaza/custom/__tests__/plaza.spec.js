@@ -3,7 +3,7 @@ import { mountPlaza } from '../plaza'
 import markup from '../plaza.html?raw'
 
 describe('custom model plaza provider icons', () => {
-  it.each(['CNY', 'USD'])('displays per-second video charges in USD with the video multiplier (%s source)', async (currency) => {
+  it.each(['CNY', 'USD'])('displays per-second video charges in the configured currency with the video multiplier (%s source)', async (currency) => {
     const host = document.createElement('div')
     const root = host.attachShadow({ mode: 'open' })
     root.innerHTML = markup
@@ -30,14 +30,20 @@ describe('custom model plaza provider icons', () => {
     }), false)
     try {
       await vi.waitFor(() => expect(root.querySelector('.model-card')).not.toBeNull())
+      const prices = [...root.querySelectorAll('.model-card .actual')].map((cell) => cell.textContent)
+      expect(prices).toEqual(currency === 'CNY'
+        ? ['¥0.08', '¥0.2', '¥0.5', '¥0.1']
+        : ['$0.08', '$0.2', '$0.5', '$0.1'])
       root.querySelector('.details-button').click()
       const body = root.querySelector('#detail-body')
       expect(body.textContent).toContain('2K / 秒（含基础费）')
       expect(body.textContent).toContain('提示词优化默认关闭')
-      const prices = [...body.querySelectorAll('.actual')].map((cell) => cell.textContent)
-      expect(prices).toEqual(currency === 'CNY'
-        ? ['$0.016', '$0.04', '$0.1', '$0.02']
-        : ['$0.08', '$0.2', '$0.5', '$0.1'])
+      expect([...body.querySelectorAll('.actual')].map((cell) => cell.textContent)).toEqual(prices)
+      expect(body.textContent).toContain(currency === 'CNY' ? '平台价 / 人民币' : '平台价 / USD')
+      expect(root.querySelector('#detail-subtitle').textContent).toContain(currency === 'CNY' ? '人民币（CNY）' : 'USD')
+      if (currency === 'CNY') {
+        expect(body.textContent).toContain('结算按配置汇率 5 CNY/USD 换算为美元')
+      }
       expect(body.textContent).not.toContain('单次请求')
     } finally {
       dispose()
