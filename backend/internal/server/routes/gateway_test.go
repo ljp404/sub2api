@@ -145,7 +145,16 @@ func TestGatewayRoutesAlphaSearchRejectsUnsupportedGroup(t *testing.T) {
 }
 
 func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
-	router := newGatewayRoutesTestRouter()
+	testCompatibleImagesPathsRegistered(t, service.PlatformOpenAI)
+}
+
+func TestGatewayRoutesMiniMaxImagesPathsAreRegistered(t *testing.T) {
+	testCompatibleImagesPathsRegistered(t, service.PlatformMiniMax)
+}
+
+func testCompatibleImagesPathsRegistered(t *testing.T, platform string) {
+	t.Helper()
+	router := newGatewayRoutesTestRouter(platform)
 
 	for _, path := range []string{
 		"/v1/images/generations",

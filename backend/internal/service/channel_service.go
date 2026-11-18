@@ -803,9 +803,9 @@ func checkBillingModeRequirements(p ChannelModelPricing) error {
 		return infraerrors.BadRequest("INVALID_VIDEO_TOKEN_PRICING", "video_token_pricing requires video_token billing mode")
 	}
 	if p.BillingMode == BillingModeParameter {
-		if (p.Platform != PlatformOpenAI && p.Platform != PlatformGemini) ||
+		if (!SupportsCompatibleImagesPlatform(p.Platform) && p.Platform != PlatformGemini) ||
 			len(p.Intervals) > 0 || len(p.ReasoningEffortMultipliers) > 0 {
-			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", "parameter pricing requires OpenAI or Gemini, without legacy intervals or reasoning multipliers")
+			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", "parameter pricing requires OpenAI, Gemini or MiniMax, without legacy intervals or reasoning multipliers")
 		}
 		if err := ValidateParameterPricing(p.ParameterPricing); err != nil {
 			return infraerrors.BadRequest("INVALID_PARAMETER_PRICING", err.Error())

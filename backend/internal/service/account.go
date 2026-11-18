@@ -2105,6 +2105,9 @@ func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapabilit
 	if capability == "" {
 		return true
 	}
+	if capability == OpenAIImagesCapabilityAPIKey && SupportsCompatibleImagesPlatform(a.Platform) {
+		return a.Type == AccountTypeAPIKey
+	}
 	if !a.IsOpenAI() {
 		return false
 	}

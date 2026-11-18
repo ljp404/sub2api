@@ -135,9 +135,9 @@ describe('PricingEntryCard media pricing platforms', () => {
     wrapper.unmount()
   })
 
-  it('offers image parameter pricing, but not video token pricing, for Gemini', () => {
+  it.each(['gemini', 'minimax'])('offers image parameter pricing, but not video token pricing, for %s', platform => {
     const wrapper = shallowMount(PricingEntryCard, {
-      props: { entry: createEntry(), platform: 'gemini', enableParameterPricing: true },
+      props: { entry: createEntry(), platform, enableParameterPricing: true },
     })
     expect(wrapper.findComponent({ name: 'Select' }).props('options').map((option: { value: string }) => option.value))
       .toEqual(['token', 'per_request', 'image', 'video', 'parameter'])

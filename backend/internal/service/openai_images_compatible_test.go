@@ -21,7 +21,7 @@ import (
 
 func TestCompatibleImagesGeminiModels(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	for _, model := range []string{"gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-3-pro-image", "gemini-3.1-flash-image"} {
+	for _, model := range []string{"gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-3-pro-image", "gemini-3.1-flash-image", "qwen-image", "qwen-image-2.1", "qwen-image-edit-plus", "MiniMax-H3-Image"} {
 		t.Run(model, func(t *testing.T) {
 			body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"draw"}`, model))
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -35,7 +35,7 @@ func TestCompatibleImagesGeminiModels(t *testing.T) {
 			require.False(t, isOpenAIImageGenerationModel(model), "compatible image IDs must not enter native Responses normalization")
 		})
 	}
-	for _, model := range []string{"gemini-2.5-pro", "gemini-2.5-flash", "gemini-3-pro-imageless", "unknown-image", "gpt-5.5"} {
+	for _, model := range []string{"gemini-2.5-pro", "gemini-2.5-flash", "gemini-3-pro-imageless", "unknown-image", "gpt-5.5", "qwen3-max", "qwen-imageless", "MiniMax-H3", "MiniMax-H3-Image-extra"} {
 		t.Run("reject_"+model, func(t *testing.T) {
 			body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"draw"}`, model))
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -47,10 +47,22 @@ func TestCompatibleImagesGeminiModels(t *testing.T) {
 }
 
 func TestCompatibleImagesForwardGemini(t *testing.T) {
+	testCompatibleImagesForward(t, "gemini-3.1-flash-image", PlatformOpenAI)
+}
+
+func TestCompatibleImagesForwardQwen(t *testing.T) {
+	testCompatibleImagesForward(t, "qwen-image-2.1", PlatformOpenAI)
+}
+
+func TestCompatibleImagesForwardMiniMax(t *testing.T) {
+	testCompatibleImagesForward(t, "MiniMax-H3-Image", PlatformMiniMax)
+}
+
+func testCompatibleImagesForward(t *testing.T, model, platform string) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	for _, kind := range []string{"generation", "json_edit", "multipart_edit", "composite_multipart_alias", "channel_mapping", "account_mapping"} {
 		t.Run(kind, func(t *testing.T) {
-			model := "gemini-3.1-flash-image"
 			endpoint := openAIImagesGenerationsEndpoint
 			contentType := "application/json"
 			channelModel := ""
@@ -90,8 +102,8 @@ func TestCompatibleImagesForwardGemini(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
 			c.Request.Header.Set("Content-Type", contentType)
 			if kind == "composite_multipart_alias" {
-				ctx := WithResolvedTargetPlatform(c.Request.Context(), PlatformOpenAI)
-				ctx = WithCompositeRouteDecision(ctx, CompositeRouteDecision{Matched: true, TargetPlatform: PlatformOpenAI, UpstreamModel: model, PublicModel: requestModel})
+				ctx := WithResolvedTargetPlatform(c.Request.Context(), platform)
+				ctx = WithCompositeRouteDecision(ctx, CompositeRouteDecision{Matched: true, TargetPlatform: platform, UpstreamModel: model, PublicModel: requestModel})
 				c.Request = c.Request.WithContext(ctx)
 			}
 			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"aW1hZ2U="}]}`))}}
@@ -101,7 +113,7 @@ func TestCompatibleImagesForwardGemini(t *testing.T) {
 			if kind == "channel_mapping" {
 				require.Equal(t, OpenAIImagesCapabilityAPIKey, parsed.RequiredCapabilityForModel(channelModel))
 			}
-			result, err := svc.ForwardImages(c.Request.Context(), c, &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: credentials}, body, parsed, channelModel)
+			result, err := svc.ForwardImages(c.Request.Context(), c, &Account{ID: 1, Platform: platform, Type: AccountTypeAPIKey, Credentials: credentials}, body, parsed, channelModel)
 			require.NoError(t, err)
 			require.Equal(t, 1, result.ImageCount)
 			require.Equal(t, model, result.UpstreamModel)
@@ -129,10 +141,23 @@ func TestCompatibleImagesForwardGemini(t *testing.T) {
 }
 
 func TestCompatibleImagesNativeAccountsRejectGeminiBeforeForwarding(t *testing.T) {
+	testCompatibleImagesNativeAccountsRejected(t, "gemini-3-pro-image")
+}
+
+func TestCompatibleImagesNativeAccountsRejectQwenBeforeForwarding(t *testing.T) {
+	testCompatibleImagesNativeAccountsRejected(t, "qwen-image-2.1")
+}
+
+func TestCompatibleImagesNativeAccountsRejectMiniMaxBeforeForwarding(t *testing.T) {
+	testCompatibleImagesNativeAccountsRejected(t, "MiniMax-H3-Image")
+}
+
+func testCompatibleImagesNativeAccountsRejected(t *testing.T, imageModel string) {
+	t.Helper()
 	for _, typ := range []string{AccountTypeOAuth, AccountTypeSetupToken} {
 		for _, mapping := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/mapping=%t", typ, mapping), func(t *testing.T) {
-				model := "gemini-3-pro-image"
+				model := imageModel
 				account := &Account{Platform: PlatformOpenAI, Type: typ, Credentials: map[string]any{"access_token": "unused"}}
 				if mapping {
 					account.Credentials["model_mapping"] = map[string]any{"gpt-image-2": model}

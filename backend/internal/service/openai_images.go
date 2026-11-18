@@ -238,7 +238,7 @@ func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []b
 	applyOpenAIImagesDefaults(req)
 	// Composite middleware preserves multipart bodies, including their public
 	// alias. Validate and forward the resolved model without altering uploads.
-	if platform, _ := ResolvedTargetPlatformFromContext(c.Request.Context()); platform == PlatformOpenAI {
+	if platform, _ := ResolvedTargetPlatformFromContext(c.Request.Context()); SupportsCompatibleImagesPlatform(platform) {
 		if model, ok := ResolvedUpstreamModelFromContext(c.Request.Context()); ok {
 			req.Model = model
 		}
@@ -531,8 +531,20 @@ func isGeminiCompatibleImageModel(model string) bool {
 		(strings.HasSuffix(model, "-image") || strings.Contains(model, "-image-"))
 }
 
+// SupportsCompatibleImagesPlatform identifies platforms using the API-key Images pipeline.
+func SupportsCompatibleImagesPlatform(platform string) bool {
+	return platform == PlatformOpenAI || platform == PlatformMiniMax
+}
+
+func isAPIKeyCompatibleImageModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return isGeminiCompatibleImageModel(model) ||
+		model == "qwen-image" || strings.HasPrefix(model, "qwen-image-") ||
+		model == "minimax-h3-image"
+}
+
 func validateCompatibleImagesModel(model string) error {
-	if isGeminiCompatibleImageModel(model) {
+	if isAPIKeyCompatibleImageModel(model) {
 		return nil
 	}
 	return validateOpenAIImagesModel(model)
@@ -541,7 +553,7 @@ func validateCompatibleImagesModel(model string) error {
 // RequiredCapabilityForModel also applies the API-key-only fence when channel
 // mapping introduces a compatible provider model after request parsing.
 func (req *OpenAIImagesRequest) RequiredCapabilityForModel(model string) OpenAIImagesCapability {
-	if isGeminiCompatibleImageModel(model) {
+	if isAPIKeyCompatibleImageModel(model) {
 		return OpenAIImagesCapabilityAPIKey
 	}
 	return req.RequiredCapability
@@ -563,7 +575,7 @@ func classifyOpenAIImagesCapability(req *OpenAIImagesRequest) OpenAIImagesCapabi
 	if req == nil {
 		return OpenAIImagesCapabilityNative
 	}
-	if isGeminiCompatibleImageModel(req.Model) {
+	if isAPIKeyCompatibleImageModel(req.Model) {
 		return OpenAIImagesCapabilityAPIKey
 	}
 	if req.ExplicitModel || req.ExplicitSize {

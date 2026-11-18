@@ -378,7 +378,7 @@ const billingModeOptions = computed(() => [
   { value: 'per_request', label: t('admin.channels.billingMode.perRequest') },
   { value: 'image', label: t('admin.channels.billingMode.image') },
   { value: 'video', label: t('admin.channels.billingMode.video') },
-  ...(props.enableParameterPricing && ['openai', 'composite', 'gemini'].includes(props.platform || '')
+  ...(props.enableParameterPricing && ['openai', 'composite', 'gemini', 'minimax'].includes(props.platform || '')
     ? [{ value: 'parameter', label: t('admin.channels.billingMode.parameter') }]
     : []),
   ...(props.enableParameterPricing && (props.platform === 'openai' || props.platform === 'composite')

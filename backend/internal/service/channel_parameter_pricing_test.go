@@ -11,7 +11,7 @@ import (
 func TestValidatePricingEntries_ParameterPricingPlatforms(t *testing.T) {
 	rule := &ParameterPricing{Version: 1, Unit: "image", BasePrice: "0.05"}
 
-	for _, platform := range []string{PlatformOpenAI, PlatformGemini} {
+	for _, platform := range []string{PlatformOpenAI, PlatformGemini, PlatformMiniMax} {
 		t.Run(platform, func(t *testing.T) {
 			err := validatePricingEntries([]ChannelModelPricing{{
 				Platform:         platform,
@@ -30,7 +30,7 @@ func TestValidatePricingEntries_ParameterPricingPlatforms(t *testing.T) {
 			BillingMode:      BillingModeParameter,
 			ParameterPricing: rule,
 		}})
-		require.ErrorContains(t, err, "parameter pricing requires OpenAI or Gemini")
+		require.ErrorContains(t, err, "parameter pricing requires OpenAI, Gemini or MiniMax")
 	})
 }
 

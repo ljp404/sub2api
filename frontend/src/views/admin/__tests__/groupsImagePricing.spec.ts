@@ -41,6 +41,11 @@ describe("groups image pricing platform support", () => {
     expect(imagePricingPlatforms.has("composite")).toBe(true);
   });
 
+  it("exposes image permission and pricing for MiniMax without enabling it by default", () => {
+    expect(supportsImagePricingPlatform("minimax")).toBe(true);
+    expect(defaultAllowImageGenerationForPlatform("minimax")).toBe(false);
+  });
+
   it("keeps image and video pricing copy separate", () => {
     expect(imagePricingI18nKey("grok", "title")).toBe(
       "admin.groups.imagePricing.title",

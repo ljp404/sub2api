@@ -45,13 +45,32 @@ func (s *asyncImageMemoryStore) Get(_ context.Context, id string) (*service.Imag
 }
 
 func TestAsyncImageHandlerSubmitAndPoll(t *testing.T) {
+	testAsyncCompatibleImageSubmitAndPoll(t, service.PlatformOpenAI, service.PlatformOpenAI)
+}
+
+func TestAsyncMiniMaxImageHandlerSubmitAndPoll(t *testing.T) {
+	testAsyncCompatibleImageSubmitAndPoll(t, service.PlatformMiniMax, service.PlatformMiniMax)
+}
+
+func TestAsyncCompositeMiniMaxImageHandlerSubmitAndPoll(t *testing.T) {
+	testAsyncCompatibleImageSubmitAndPoll(t, service.PlatformComposite, service.PlatformMiniMax)
+}
+
+func TestAsyncCompositeOpenAIImageHandlerSubmitAndPoll(t *testing.T) {
+	testAsyncCompatibleImageSubmitAndPoll(t, service.PlatformComposite, service.PlatformOpenAI)
+}
+
+func testAsyncCompatibleImageSubmitAndPoll(t *testing.T, groupPlatform, targetPlatform string) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	store := &asyncImageMemoryStore{tasks: make(map[string]*service.ImageTaskRecord)}
 	tasks := service.NewImageTaskServiceWithUploader(store, nil, time.Hour, time.Minute)
 	release := make(chan struct{})
 	h := &AsyncImageHandler{tasks: tasks}
-	h.execute = func(_ string, c *gin.Context) {
+	executedPlatform := make(chan string, 1)
+	h.execute = func(platform string, c *gin.Context) {
 		<-release
+		executedPlatform <- platform
 		c.JSON(http.StatusOK, gin.H{"created": 123, "data": []gin.H{{"url": "https://example.test/image.png"}}})
 	}
 
@@ -62,8 +81,11 @@ func TestAsyncImageHandlerSubmitAndPoll(t *testing.T) {
 			ID:      9,
 			UserID:  7,
 			GroupID: &groupID,
-			Group:   &service.Group{ID: groupID, Platform: service.PlatformOpenAI, AllowImageGeneration: true},
+			Group:   &service.Group{ID: groupID, Platform: groupPlatform, AllowImageGeneration: true},
 		})
+		if groupPlatform == service.PlatformComposite {
+			c.Request = c.Request.WithContext(service.WithResolvedTargetPlatform(c.Request.Context(), targetPlatform))
+		}
 		c.Next()
 	})
 	router.POST("/v1/images/generations/async", h.Submit)
@@ -92,6 +114,8 @@ func TestAsyncImageHandlerSubmitAndPoll(t *testing.T) {
 	// from the short submission request.
 	cancelRequest()
 	close(release)
+	require.Eventually(t, func() bool { return len(executedPlatform) > 0 }, time.Second, 10*time.Millisecond)
+	require.Equal(t, targetPlatform, <-executedPlatform)
 	require.Eventually(t, func() bool {
 		got, err := tasks.Get(context.Background(), service.ImageTaskOwner{UserID: 7, APIKeyID: 9}, accepted.TaskID)
 		return err == nil && got.Status == service.ImageTaskStatusCompleted
