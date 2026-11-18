@@ -27,6 +27,23 @@ func TestUserAvailableChannel_Unauthenticated401(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+func TestToUserPricingPreservesVideoTaskRule(t *testing.T) {
+	rule := &service.VideoTaskPricing{
+		Version: 1, Currency: "CNY", CNYPerUSD: "6.6693",
+		Price480PPerSecond: "0.04", Price768PPerSecond: "0.1",
+		Upgrade2KPerSecond: "0.15", PromptPolishPricePerCall: "0.05",
+	}
+	pricing := toUserPricing(&service.ChannelModelPricing{
+		BillingMode: service.BillingModeVideo, VideoTaskPricing: rule,
+	})
+	require.Equal(t, rule, pricing.VideoTaskPricing)
+	require.NotSame(t, rule, pricing.VideoTaskPricing)
+	raw, err := json.Marshal(pricing)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"video_task_pricing"`)
+	require.Contains(t, string(raw), `"cny_per_usd":"6.6693"`)
+}
+
 func TestFilterUserVisibleGroups_IntersectionOnly(t *testing.T) {
 	// 渠道挂在 {g1, g2, g3}，用户只允许 {g1, g3} —— 响应必须仅含 g1/g3。
 	groups := []service.AvailableGroupRef{

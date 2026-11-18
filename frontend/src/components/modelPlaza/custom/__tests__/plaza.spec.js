@@ -3,6 +3,47 @@ import { mountPlaza } from '../plaza'
 import markup from '../plaza.html?raw'
 
 describe('custom model plaza provider icons', () => {
+  it.each(['CNY', 'USD'])('displays per-second video charges in USD with the video multiplier (%s source)', async (currency) => {
+    const host = document.createElement('div')
+    const root = host.attachShadow({ mode: 'open' })
+    root.innerHTML = markup
+    const dialog = root.getElementById('details')
+    dialog.close = vi.fn()
+    dialog.showModal = vi.fn()
+    const dispose = mountPlaza(root, vi.fn().mockResolvedValue({
+      groups: [{
+        id: 1, name: 'Video', rate_multiplier: 9,
+        video_rate_independent: true, video_rate_multiplier: 2,
+        models: [{
+          name: 'MiniMax-H3', platform: 'minimax',
+          pricing: {
+            billing_mode: 'video',
+            video_task_pricing: {
+              version: 1, currency, cny_per_usd: '5',
+              price_480p_per_second: '0.04', price_768p_per_second: '0.1',
+              upgrade_2k_per_second: '0.15', prompt_polish_price_per_call: '0.05',
+              prompt_polish_default_enabled: false,
+            },
+          },
+        }],
+      }],
+    }), false)
+    try {
+      await vi.waitFor(() => expect(root.querySelector('.model-card')).not.toBeNull())
+      root.querySelector('.details-button').click()
+      const body = root.querySelector('#detail-body')
+      expect(body.textContent).toContain('2K / 秒（含基础费）')
+      expect(body.textContent).toContain('提示词优化默认关闭')
+      const prices = [...body.querySelectorAll('.actual')].map((cell) => cell.textContent)
+      expect(prices).toEqual(currency === 'CNY'
+        ? ['$0.016', '$0.04', '$0.1', '$0.02']
+        : ['$0.08', '$0.2', '$0.5', '$0.1'])
+      expect(body.textContent).not.toContain('单次请求')
+    } finally {
+      dispose()
+    }
+  })
+
   it('shows a manual per-request reference price for token-billed video models without discount comparison', async () => {
     const host = document.createElement('div')
     const root = host.attachShadow({ mode: 'open' })

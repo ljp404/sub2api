@@ -296,6 +296,21 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     reference = variant.model.official_pricing,
     detailed = false,
   ) {
+    if (mode(variant.model) === 'video' && pricing?.video_task_pricing) {
+      const rule = pricing.video_task_pricing
+      const fx = rule.currency === 'CNY' ? Number(rule.cny_per_usd) : 1
+      const rate = multiplier(variant, 'per_request_price')
+      const usd = (value) => Number.isFinite(fx) && fx > 0
+        ? formatScaled(Number(value) / fx * rate, 1)
+        : '—'
+      const charges = [
+        ['480P / 秒', rule.price_480p_per_second],
+        ['768P / 秒', rule.price_768p_per_second],
+        ['2K / 秒（含基础费）', Number(rule.price_768p_per_second) + Number(rule.upgrade_2k_per_second)],
+        ['提示词优化 / 次', rule.prompt_polish_price_per_call],
+      ]
+      return `<div class="price-box"><table class="prices"><thead><tr><th>价格项</th><th>平台价 / USD</th></tr></thead><tbody>${charges.map(([label, value]) => `<tr><td>${escapeHTML(label)}</td><td class="actual">${usd(value)}</td></tr>`).join('')}</tbody></table></div>${detailed ? `<p class="detail-note">2K 单价 = 768P 基础价 + 2K 升级附加费。实际费用 =（每秒价格 × 视频秒数 + 已启用的提示词优化费）× 倍率。</p><p class="detail-note">提示词优化默认${rule.prompt_polish_default_enabled ? '开启' : '关闭'}，仅开启时计费。${rule.currency === 'CNY' ? `按配置汇率 ${escapeHTML(rule.cny_per_usd)} CNY/USD 换算，以上价格已计入所选分组的视频倍率。` : '以上价格已计入所选分组的视频倍率。'}</p>` : ''}`
+    }
     if (mode(variant.model) === 'video_token') {
       const rule = pricing?.video_token_pricing
       if (!rule) return '<div class="detail-note">暂无视频 Token 规则</div>'
@@ -368,7 +383,9 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         const v = representative(item)
         const billing = mode(v.model)
         const base = v.model.pricing?.parameter_pricing?.base_price
-        const mediaPrice = billing === 'video_token'
+        const mediaPrice = billing === 'video' && v.model.pricing?.video_task_pricing
+          ? '按秒计费 · 详情'
+          : billing === 'video_token'
           ? '视频 Token / 百万'
           : billing === 'parameter'
           ? `基础价 ${money(base == null ? null : Number(base) * multiplier(v, 'per_request_price'), 'per_request_price')}/张`
@@ -541,7 +558,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     )
     if (efforts.length)
       html += `<p class="detail-note">推理强度倍率：${efforts.map(([effort, factor]) => `${escapeHTML(effort)} ×${escapeHTML(factor)}`).join(' / ')}。</p>`
-    if (mode(m) !== 'token' && mode(m) !== 'parameter' && mode(m) !== 'video_token')
+    if (mode(m) !== 'token' && mode(m) !== 'parameter' && mode(m) !== 'video_token' && !m.pricing?.video_task_pricing)
       html +=
         '<p class="detail-note">当前按次或媒体计费，官方目录的每 token 参考价与此单位不同，不作折扣比较。</p>'
     if (tiers.length > 1) {

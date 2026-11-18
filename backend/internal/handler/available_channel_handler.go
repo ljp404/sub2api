@@ -69,6 +69,7 @@ type userAvailableGroup struct {
 
 // userSupportedModelPricing 用户可见的定价字段白名单。
 type userSupportedModelPricing struct {
+	VideoTaskPricing           *service.VideoTaskPricing  `json:"video_task_pricing,omitempty"`
 	VideoTokenPricing          *service.VideoTokenPricing `json:"video_token_pricing,omitempty"`
 	ParameterPricing           *service.ParameterPricing  `json:"parameter_pricing,omitempty"`
 	BillingMode                string                     `json:"billing_mode"`
@@ -347,6 +348,7 @@ func toUserPricing(p *service.ChannelModelPricing) *userSupportedModelPricing {
 		billingMode = string(service.BillingModeToken)
 	}
 	return &userSupportedModelPricing{
+		VideoTaskPricing:           service.CloneVideoTaskPricing(p.VideoTaskPricing),
 		ParameterPricing:           service.CloneParameterPricing(p.ParameterPricing),
 		VideoTokenPricing:          service.CloneVideoTokenPricing(p.VideoTokenPricing),
 		BillingMode:                billingMode,

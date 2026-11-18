@@ -74,6 +74,26 @@ export interface VideoTaskPricing {
   prompt_polish_default_enabled: boolean
 }
 
+export interface VideoTaskPricingSnapshot {
+  rule_hash: string
+  rule: VideoTaskPricing
+  input: {
+    resolution: string
+    duration_seconds: string
+    prompt_polish: boolean
+    multiplier: string
+  }
+  base_price: string
+  upgrade_price: string
+  prompt_polish_price: string
+  currency: string
+  source_currency: string
+  fx_rate: string
+  total_cost: string
+  actual_cost: string
+  hold_id?: string
+}
+
 export interface ParameterPricing {
   version: 1
   unit: 'image'

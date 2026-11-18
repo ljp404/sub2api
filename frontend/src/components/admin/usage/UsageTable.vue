@@ -415,11 +415,12 @@
       }"
     >
       <div class="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
-        :class="tooltipData?.billing_mode === 'parameter' || tooltipData?.billing_mode === 'video_token' || tooltipData?.parameter_pricing?.hold_only ? 'w-80 max-w-[calc(100vw-16px)] whitespace-normal' : 'whitespace-nowrap'">
+        :class="tooltipData?.billing_mode === 'parameter' || tooltipData?.billing_mode === 'video_token' || tooltipData?.billing_mode === 'video' || tooltipData?.parameter_pricing?.hold_only ? 'w-80 max-w-[calc(100vw-16px)] whitespace-normal' : 'whitespace-nowrap'">
         <div class="space-y-1.5">
           <!-- Cost Breakdown -->
           <div class="mb-2 border-b border-gray-700 pb-1.5">
             <div class="text-xs font-semibold text-gray-300 mb-1">{{ t('usage.costDetails') }}</div>
+            <VideoTaskCostDetails v-if="tooltipData?.video_task_pricing" :snapshot="tooltipData.video_task_pricing" />
             <div v-if="tooltipData?.video_token_pricing" class="max-w-sm space-y-1 break-words border-b border-gray-600 pb-2 text-xs text-gray-200">
               <div>{{ t(tooltipData.video_token_pricing.token_source === 'upstream' ? 'admin.channels.videoToken.upstreamTokens' : 'admin.channels.videoToken.formula') }}</div>
               <div v-if="tooltipData.video_token_pricing.token_source !== 'upstream'">{{ tooltipData.video_token_pricing.input.width }} × {{ tooltipData.video_token_pricing.input.height }} · {{ tooltipData.video_token_pricing.input.output_seconds }}s + {{ tooltipData.video_token_pricing.billed_input_seconds }}s</div>
@@ -511,7 +512,7 @@
                 <span class="font-medium text-white">${{ tooltipData.total_cost?.toFixed(8) || '0.00000000' }}</span>
               </div>
             </template>
-            <div v-else class="flex items-center justify-between gap-4">
+            <div v-else-if="!tooltipData?.video_task_pricing" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('usage.unitPrice') }}</span>
               <span class="font-medium text-sky-300">${{ tooltipData?.total_cost?.toFixed(8) || '0.00000000' }}</span>
             </div>
@@ -617,6 +618,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import Icon from '@/components/icons/Icon.vue'
+import VideoTaskCostDetails from './VideoTaskCostDetails.vue'
 import { apiClient } from '@/api/client'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
 import type { AdminUsageLog } from '@/types'
@@ -740,7 +742,7 @@ const tooltipData = ref<AdminUsageLog | null>(null)
 const costTooltipElement = ref<HTMLElement | null>(null)
 
 function fitParameterTooltip() {
-  if (!['parameter', 'video_token'].includes(tooltipData.value?.billing_mode || '') || !costTooltipElement.value) return
+  if (!['parameter', 'video_token', 'video'].includes(tooltipData.value?.billing_mode || '') || !costTooltipElement.value) return
   const { width, height } = costTooltipElement.value.getBoundingClientRect()
   tooltipPosition.value.x = Math.max(8, Math.min(tooltipPosition.value.x, window.innerWidth - width - 8))
   tooltipPosition.value.y = Math.max(height / 2 + 8, Math.min(tooltipPosition.value.y, window.innerHeight - height / 2 - 8))
@@ -795,11 +797,11 @@ const showTooltip = (event: MouseEvent, row: AdminUsageLog) => {
   tooltipPosition.value.x = rect.right + 8
   tooltipPosition.value.y = rect.top + rect.height / 2
   tooltipVisible.value = true
-  if (row.billing_mode === 'parameter' || row.billing_mode === 'video_token') {
+  if (row.billing_mode === 'parameter' || row.billing_mode === 'video_token' || row.billing_mode === 'video') {
     void nextTick(fitParameterTooltip)
     apiClient.get<AdminUsageLog>(`${props.userView ? '/usage' : '/admin/usage'}/${row.id}`).then(({ data }) => {
       if (tooltipVisible.value && tooltipData.value?.id === row.id) {
-        tooltipData.value = { ...row, parameter_pricing: data.parameter_pricing, video_token_pricing: data.video_token_pricing }
+        tooltipData.value = { ...row, parameter_pricing: data.parameter_pricing, video_token_pricing: data.video_token_pricing, video_task_pricing: data.video_task_pricing }
         void nextTick(fitParameterTooltip)
       }
     }).catch(() => { /* Existing totals remain visible when details cannot be loaded. */ })

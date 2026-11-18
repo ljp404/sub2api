@@ -15,6 +15,7 @@ vi.mock('@/stores/app', () => ({ useAppStore: () => appStoreMocks }))
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { apiClient } from '@/api/client'
 
 import en from '@/i18n/locales/en/admin/resources'
 import zh from '@/i18n/locales/zh/admin/resources'
@@ -179,6 +180,37 @@ describe('admin UsageTable endpoint column', () => {
 })
 
 describe('admin UsageTable tooltip', () => {
+  it.each([true, false])('loads the frozen per-second video breakdown (userView=%s)', async (userView) => {
+    const snapshot = {
+      rule_hash: 'frozen-rule-hash', source_currency: 'CNY', fx_rate: '6.6693',
+      rule: { price_480p_per_second: '0.04', price_768p_per_second: '0.1', upgrade_2k_per_second: '0.15' },
+      input: { resolution: '2k', duration_seconds: '15', prompt_polish: false, multiplier: '1' },
+      base_price: '0.22491116', upgrade_price: '0.33736674',
+      prompt_polish_price: '0.00000000', total_cost: '0.56227790', actual_cost: '0.56227790',
+    }
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { video_task_pricing: snapshot } })
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, id: 123, image_count: 0, billing_mode: 'video', total_cost: 0.56227790 }],
+        loading: false, columns: [], userView,
+      },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    try {
+      const triggers = wrapper.findAll('.group.relative')
+      await triggers[triggers.length - 1].trigger('mouseenter')
+      await vi.waitFor(() => expect(wrapper.text()).toContain('0.33736674'))
+      expect(get).toHaveBeenCalledWith(`${userView ? '/usage' : '/admin/usage'}/123`)
+      expect(wrapper.text()).toContain('15s')
+      expect(wrapper.text()).toContain('6.6693 CNY/USD')
+      expect(wrapper.text()).toContain('$0.56227790 × 1 = $0.56227790')
+      expect(wrapper.text()).not.toContain('usage.unitPrice')
+    } finally {
+      wrapper.unmount()
+      get.mockRestore()
+    }
+  })
+
   it('shows output TPS in the latency cell using total duration', () => {
     const row = { ...baseImageRow, image_count: 0, billing_mode: 'token', output_tokens: 1000, duration_ms: 20_000, first_token_ms: 10_000 }
     const wrapper = mount(UsageTable, {

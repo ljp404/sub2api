@@ -1864,6 +1864,7 @@ export interface UsageLog {
   billing_mode?: string | null
   parameter_pricing?: import('@/api/admin/channels').ParameterPricingSnapshot | null
   video_token_pricing?: import('@/api/admin/channels').VideoTokenPricingSnapshot | null
+  video_task_pricing?: import('@/api/admin/channels').VideoTaskPricingSnapshot | null
 
   created_at: string
 
