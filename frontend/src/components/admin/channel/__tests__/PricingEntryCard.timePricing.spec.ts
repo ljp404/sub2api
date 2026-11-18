@@ -97,7 +97,7 @@ describe('PricingEntryCard video task pricing', () => {
     expect(enabled.video_task_pricing).toMatchObject({
       version: 1,
       currency: 'CNY',
-      prompt_polish_default_enabled: true,
+      prompt_polish_default_enabled: false,
     })
     expect(enabled.per_request_price).toBe(entry.per_request_price)
   })

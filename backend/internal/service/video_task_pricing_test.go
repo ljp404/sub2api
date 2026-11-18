@@ -11,7 +11,7 @@ func h3VideoTaskPricing() *VideoTaskPricing {
 		Version: 1, Currency: "CNY", CNYPerUSD: "7.2",
 		Price480PPerSecond: "0.04", Price768PPerSecond: "0.10",
 		Upgrade2KPerSecond: "0.15", PromptPolishPricePerCall: "0.05",
-		PromptPolishDefaultEnabled: true,
+		PromptPolishDefaultEnabled: false,
 	}
 }
 
@@ -52,17 +52,37 @@ func TestNormalizeVideoTaskResolution(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestPrepareVideoTaskQuoteUsesServiceDefaultOnlyWhenPromptPolishOmitted(t *testing.T) {
-	rule := h3VideoTaskPricing()
-	body := []byte(`{"model":"MiniMax-H3","duration":5,"resolution":"768p","metadata":{"prompt_polish":false}}`)
-	quote, _, err := prepareVideoTaskQuote(rule, body, "1")
-	require.NoError(t, err)
-	require.False(t, quote.Input.PromptPolish)
-
-	body = []byte(`{"model":"MiniMax-H3","duration":5,"resolution":"768p"}`)
-	quote, _, err = prepareVideoTaskQuote(rule, body, "1")
-	require.NoError(t, err)
-	require.True(t, quote.Input.PromptPolish)
+func TestPrepareVideoTaskQuotePromptPolish(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		defaultEnabled bool
+		fields         string
+		wantEnabled    bool
+	}{
+		{name: "omitted defaults off"},
+		{name: "explicit true", fields: `,"prompt_polish":true`, wantEnabled: true},
+		{name: "explicit false", fields: `,"prompt_polish":false`},
+		{name: "metadata true", fields: `,"metadata":{"prompt_polish":true}`, wantEnabled: true},
+		{name: "metadata false", fields: `,"metadata":{"prompt_polish":false}`},
+		{name: "configured default on", defaultEnabled: true, wantEnabled: true},
+		{name: "false overrides configured default", defaultEnabled: true, fields: `,"prompt_polish":false`},
+		{name: "metadata false overrides configured default", defaultEnabled: true, fields: `,"metadata":{"prompt_polish":false}`},
+		{name: "top level takes precedence", fields: `,"prompt_polish":false,"metadata":{"prompt_polish":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rule := h3VideoTaskPricing()
+			rule.PromptPolishDefaultEnabled = tc.defaultEnabled
+			body := []byte(`{"model":"MiniMax-H3","duration":5,"resolution":"768p"` + tc.fields + `}`)
+			quote, _, err := prepareVideoTaskQuote(rule, body, "1")
+			require.NoError(t, err)
+			require.Equal(t, tc.wantEnabled, quote.Input.PromptPolish)
+			if tc.wantEnabled {
+				require.Equal(t, "0.00694444", quote.PromptPolishPrice)
+			} else {
+				require.Equal(t, "0.00000000", quote.PromptPolishPrice)
+			}
+		})
+	}
 }
 
 func TestPrepareVideoTaskQuoteSupportsV2PromptPolishOverride(t *testing.T) {

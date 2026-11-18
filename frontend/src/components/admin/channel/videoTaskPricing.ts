@@ -9,7 +9,7 @@ export function emptyVideoTaskPricing(): VideoTaskPricing {
     price_768p_per_second: '',
     upgrade_2k_per_second: '',
     prompt_polish_price_per_call: '',
-    prompt_polish_default_enabled: true,
+    prompt_polish_default_enabled: false,
   }
 }
 
