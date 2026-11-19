@@ -1,6 +1,7 @@
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { formatScaled, resolveIntervalPrices } from '@/utils/pricing'
+import { referencePricingSegments } from './referencePricing'
 import geminiIcon from './gemini.svg?raw'
 import qwenIcon from './qwen.svg?raw'
 
@@ -279,7 +280,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         .join('')
     const suppliers = [...new Set(state.models.map((m) => m.supplier))]
     $('suppliers').innerHTML =
-      chip('', '全部供应商', state.supplier, 'supplier', suppliers.length) +
+      chip('', '全部渠道', state.supplier, 'supplier', suppliers.length) +
       suppliers.map((supplier) =>
         chip(supplier, supplier, state.supplier, 'supplier',
           state.models.filter((m) => m.supplier === supplier).length),
@@ -370,14 +371,14 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         ? []
         : v.model.pricing?.intervals || []
     return `<article class="model-card ${selected ? 'selected' : ''}" data-model="${escapeHTML(item.name)}">
-    <div class="card-head">${brand(item.provider)}<div class="card-identity"><h2>${escapeHTML(item.displayName)}</h2><div class="badges"><span class="badge group-badge" title="供应商：${escapeHTML(item.supplier)}">${escapeHTML(item.supplier)}</span>${intervals.length > 1 ? '<span class="badge tier-badge">阶梯定价</span>' : '<span class="badge tier-badge">标准定价</span>'}</div></div><div class="card-actions"><button class="icon-button quiet" data-copy="${index}" title="复制模型名称" aria-label="复制 ${escapeHTML(item.name)}">${icon('copy')}</button><input class="model-check" type="checkbox" data-select="${index}" ${selected ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></div></div>
+    <div class="card-head">${brand(item.provider)}<div class="card-identity"><h2>${escapeHTML(item.displayName)}</h2><div class="badges"><span class="badge group-badge" title="渠道：${escapeHTML(item.supplier)}">${escapeHTML(item.supplier)}</span>${intervals.length > 1 ? '<span class="badge tier-badge">阶梯定价</span>' : '<span class="badge tier-badge">标准定价</span>'}</div></div><div class="card-actions"><button class="icon-button quiet" data-copy="${index}" title="复制模型名称" aria-label="复制 ${escapeHTML(item.name)}">${icon('copy')}</button><input class="model-check" type="checkbox" data-select="${index}" ${selected ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></div></div>
     ${priceTable(v)}
     <div class="base-note">展示分组：${escapeHTML(v.group.name)} · 标准时段${intervals.length > 1 ? ' / 首档' : ''}</div>
     <div class="card-footer"><div class="badges"><span class="tag">${escapeHTML(billingNames[mode(v.model)] || mode(v.model))}</span></div><button class="details-button" data-detail="${index}">详情 ${icon('chevron-right')}</button></div></article>`
   }
   function listTable(items) {
     const unit = state.unit === 1000000 ? 'M' : 'K'
-    return `<div class="table-wrap"><table class="model-table"><thead><tr><th></th><th>模型</th><th>供应商</th><th>输入 /${unit}</th><th>输出 /${unit}</th><th>缓存读取 /${unit}</th><th>按次 / 媒体</th><th>操作</th></tr></thead><tbody>${items
+    return `<div class="table-wrap"><table class="model-table"><thead><tr><th></th><th>模型</th><th>渠道</th><th>输入 /${unit}</th><th>输出 /${unit}</th><th>缓存读取 /${unit}</th><th>按次 / 媒体</th><th>操作</th></tr></thead><tbody>${items
       .map((item, i) => {
         const v = representative(item)
         const billing = mode(v.model)
@@ -547,7 +548,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       ? '人民币（CNY）'
       : 'USD'
     $('detail-subtitle').textContent =
-      `${providerNames[item.provider] || item.provider} · 供应商：${item.supplier} · ${displayCurrency} · ${billingNames[mode(m)] || mode(m)}`
+      `${providerNames[item.provider] || item.provider} · 渠道：${item.supplier} · ${displayCurrency} · ${billingNames[mode(m)] || mode(m)}`
     const platformTiers = m.pricing?.intervals || [],
       officialTiers = m.official_pricing?.intervals || []
     const tiers =
@@ -573,12 +574,15 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       html += `<p class="detail-note">${m.long_context_basis === 'marginal' ? '按区间分段计费，只有超出阈值的部分按对应档位单价计价。' : '整单按请求所在档位的单价计价。'} 以下价格已计入所选分组倍率。</p>`
       html += tiers
         .map((tier) => {
-          const official = officialTiers.find(
-            (t) =>
-              t.min_tokens === tier.min_tokens &&
-              t.max_tokens === tier.max_tokens,
-          )
-          return `<section class="tier-section"><h3>${escapeHTML(tierLabel(tier))}</h3>${priceTable(v, resolveTier(tier, m.pricing), official ? resolveTier(official, m.official_pricing) : null, true)}</section>`
+          const segments = referencePricingSegments(tier, m.official_pricing)
+          const tables = (state.compare ? segments : segments.slice(0, 1))
+            .map((segment) => {
+              const range = segments.length > 1 && state.compare
+                ? `<p class="detail-note">参考价适用范围：${segment.min_tokens.toLocaleString()} &lt; tokens${segment.max_tokens == null ? '' : ` ≤ ${segment.max_tokens.toLocaleString()}`}</p>`
+                : ''
+              return `${range}${priceTable(v, resolveTier(tier, m.pricing), segment.reference, true)}`
+            }).join('')
+          return `<section class="tier-section"><h3>${escapeHTML(tierLabel(tier))}</h3>${tables}</section>`
         })
         .join('')
     } else if (
