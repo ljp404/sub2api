@@ -272,7 +272,6 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         chip(supplier, supplier, state.supplier, 'supplier',
           state.models.filter((m) => m.supplier === supplier).length),
       ).join('')
-    $('supplier-count').textContent = `${suppliers.length} 个`
   }
   function priceTable(
     variant,
