@@ -21,6 +21,8 @@ export interface IntervalFormEntry {
 }
 
 export interface PricingFormEntry {
+  image_price_currency?: 'USD' | 'CNY'
+  image_cny_per_usd?: number | string | null
   image_edit_price?: number | string | null
   platform?: string
   video_token_pricing?: VideoTokenPricing | null

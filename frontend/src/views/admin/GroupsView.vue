@@ -4458,6 +4458,8 @@ const groupPricingFromAPI = (
     image_output_price: perTokenToMTok(entry.image_output_price),
     per_request_price: entry.per_request_price,
     image_edit_price: entry.image_edit_price,
+    image_price_currency: entry.image_price_currency,
+    image_cny_per_usd: entry.image_cny_per_usd,
     intervals: apiIntervalsToForm(entry.intervals || []),
     time_pricing: createDefaultTimePricingForm(),
   }));
@@ -4494,6 +4496,8 @@ const groupPricingToAPI = (
       image_output_price: mTokToPerToken(entry.image_output_price),
       per_request_price: toNullableNumber(entry.per_request_price),
       image_edit_price: entry.billing_mode === "image" ? toNullableNumber(entry.image_edit_price) : null,
+      image_price_currency: entry.billing_mode === "image" ? (entry.image_price_currency || "USD") : undefined,
+      image_cny_per_usd: entry.billing_mode === "image" && entry.image_price_currency === "CNY" ? toNullableNumber(entry.image_cny_per_usd) : null,
       intervals:
         entry.billing_mode === "token"
           ? []

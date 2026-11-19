@@ -297,7 +297,7 @@ export default {
         defaultImagePrice: 'Default image price (fallback when no tier matches)',
         imageEditPrice: 'Image edit price (optional)',
         perImage: 'image',
-        imageCurrencyHint: 'Currency applies to default and edit price inputs. Prices are converted to USD on save and reopen in USD. Tier prices always use USD.',
+        imageCurrencyHint: 'Default and edit prices and the exchange rate are saved as entered. Billing converts them to USD. Tier prices remain in USD.',
         imageExchangeRateRequired: 'Enter a valid exchange rate before entering CNY prices. Existing USD prices are preserved.',
         imageEditFallback: 'Leave empty to use the existing image price',
         cnyConversion: 'Convert CNY to USD',

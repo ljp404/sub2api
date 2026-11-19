@@ -153,7 +153,7 @@ func tryCustomRequestRules(
 		}
 		cost := calculateStatsCost(pricing, tokens, requestCount)
 		if imageEdit && pricing.BillingMode == BillingModeImage && pricing.ImageEditPrice != nil {
-			editCost := *pricing.ImageEditPrice * float64(max(requestCount, 1))
+			editCost := pricing.ImagePriceUSD(*pricing.ImageEditPrice) * float64(max(requestCount, 1))
 			cost = &editCost
 		}
 		if cost != nil {
@@ -247,7 +247,7 @@ func calculatePerRequestStatsCost(pricing *ChannelModelPricing, requestCount int
 	if pricing.PerRequestPrice == nil || *pricing.PerRequestPrice <= 0 {
 		return nil
 	}
-	cost := *pricing.PerRequestPrice * float64(requestCount)
+	cost := pricing.ImagePriceUSD(*pricing.PerRequestPrice) * float64(requestCount)
 	return &cost
 }
 

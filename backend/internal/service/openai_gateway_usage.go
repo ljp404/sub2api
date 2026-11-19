@@ -851,7 +851,7 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 		resolved.channelPricing.ImageEditPrice != nil {
 		// An explicit edit price overrides generation tiers, including a zero price.
 		editPricing := *resolved
-		editPricing.DefaultPerRequestPrice = *resolved.channelPricing.ImageEditPrice
+		editPricing.DefaultPerRequestPrice = resolved.channelPricing.ImagePriceUSD(*resolved.channelPricing.ImageEditPrice)
 		editPricing.RequestTiers = nil
 		gid := apiKey.Group.ID
 		cost, err := s.billingService.CalculateCostUnified(CostInput{

@@ -339,6 +339,7 @@ func toUserPricing(p *service.ChannelModelPricing) *userSupportedModelPricing {
 	if p == nil {
 		return nil
 	}
+	p = p.ImagePricingUSD()
 	intervals := toUserPricingIntervals(p.Intervals)
 	if intervals == nil {
 		// 用户侧定价的 intervals 固定输出数组（空配置为 []），保持既有契约。

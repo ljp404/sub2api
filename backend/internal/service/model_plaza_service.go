@@ -351,8 +351,9 @@ func (s *ModelPlazaService) DeleteReferencePrices(ctx context.Context, ids []int
 // token 模型取计费阶梯表（单价与档位均由真实计费函数得出），
 // 图片/按次模型（或阶梯表不可用时）沿用渠道定价与分组图片档位价。
 func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaModel, g *Group) {
+	m.Pricing = m.Pricing.ImagePricingUSD()
 	if groupPricing := matchGroupModelPricing(g, m.Name); groupPricing != nil {
-		m.Pricing = groupPricing
+		m.Pricing = groupPricing.ImagePricingUSD()
 		// 分组模型级固定价就是实收价，不能再被分组图片兜底档位覆盖。
 		// 否则模型广场会显示 image_price_1k/2k/4k，而实际按 model_pricing 扣费。
 		if groupPricing.BillingMode == BillingModeImage ||

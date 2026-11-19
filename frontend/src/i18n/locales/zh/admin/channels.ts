@@ -297,7 +297,7 @@ export default {
         defaultImagePrice: '默认图片价格（未命中层级时使用）',
         imageEditPrice: '编辑图片价格（可选）',
         perImage: '张',
-        imageCurrencyHint: '此处币种用于默认价和编辑价输入，按汇率换算为美元保存；重新打开时显示美元，层级价格始终使用美元。',
+        imageCurrencyHint: '默认价、编辑价与汇率按原值保存，后台计费时换算为美元；层级价格仍使用美元。',
         imageExchangeRateRequired: '请先填写有效汇率，再输入人民币价格；原有美元价格保持不变。',
         imageEditFallback: '留空沿用原图片价格',
         cnyConversion: '人民币换算为美元',

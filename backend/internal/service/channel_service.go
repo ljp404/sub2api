@@ -784,6 +784,9 @@ func validatePricingBillingMode(pricing []ChannelModelPricing) error {
 }
 
 func checkBillingModeRequirements(p ChannelModelPricing) error {
+	if err := validateImagePriceCurrency(p); err != nil {
+		return infraerrors.BadRequest("INVALID_IMAGE_PRICE_CURRENCY", err.Error())
+	}
 	if p.ImageEditPrice != nil && p.BillingMode != BillingModeImage {
 		return infraerrors.BadRequest("INVALID_IMAGE_EDIT_PRICE", "image_edit_price requires image billing mode")
 	}

@@ -39,6 +39,8 @@ export interface ChannelTimePricing {
 }
 
 export interface ChannelModelPricing {
+  image_price_currency?: 'USD' | 'CNY'
+  image_cny_per_usd?: number | null
   image_edit_price?: number | null
   video_token_pricing?: VideoTokenPricing | null
   video_task_pricing?: VideoTaskPricing | null
