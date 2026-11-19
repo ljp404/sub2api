@@ -118,3 +118,59 @@ func providerClaudeRecordUsageInput(platform, model string, group *Group, usage 
 		Account: &Account{ID: 30, Platform: platform, Type: AccountTypeAPIKey},
 	}
 }
+
+func TestOpenAIGatewayServiceRecordUsage_SupplierAliasPricing(t *testing.T) {
+	const requestedModel = "claude-opus-4-8/sdl"
+	const upstreamModel = "claude-opus-4-8"
+	for _, pricingSource := range []string{PricingSourceGroup, PricingSourceChannel} {
+		for _, billingSource := range []string{BillingModelSourceChannelMapped, BillingModelSourceRequested, BillingModelSourceUpstream} {
+			t.Run(pricingSource+"/"+billingSource, func(t *testing.T) {
+				usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+				userRepo := &openAIRecordUsageUserRepoStub{}
+				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
+				group := &Group{ID: 1, Platform: PlatformComposite, RateMultiplier: 1}
+				inputPrice, outputPrice, cacheWritePrice := 1.75e-6, 8.75e-6, 2.5e-6
+				pricing := ChannelModelPricing{
+					Models: []string{requestedModel}, BillingMode: BillingModeToken,
+					InputPrice: &inputPrice, OutputPrice: &outputPrice, CacheWritePrice: &cacheWritePrice,
+				}
+				if pricingSource == PricingSourceGroup {
+					group.ModelPricing = []ChannelModelPricing{pricing}
+				} else {
+					cache := newEmptyChannelCache()
+					cache.pricingByGroupModel[channelModelKey{groupID: group.ID, platform: PlatformOpenAI, model: requestedModel}] = &pricing
+					cache.channelByGroupID[group.ID] = &Channel{ID: 1, Status: StatusActive}
+					cache.groupPlatform[group.ID] = PlatformComposite
+					cache.loadedAt = time.Now()
+					svc.channelService = &ChannelService{}
+					svc.channelService.cache.Store(cache)
+				}
+				svc.resolver = NewModelPricingResolver(svc.channelService, svc.billingService)
+				usage := OpenAIUsage{InputTokens: 15776, OutputTokens: 201, CacheCreationInputTokens: 15774}
+				input := providerClaudeRecordUsageInput(PlatformOpenAI, requestedModel, group, usage)
+				input.Result.BillingModel = upstreamModel
+				input.Result.UpstreamModel = upstreamModel
+				input.ChannelUsageFields = ChannelUsageFields{
+					OriginalModel: requestedModel, ChannelMappedModel: requestedModel,
+					BillingModelSource: billingSource,
+				}
+				expected := float64(usage.InputTokens-usage.CacheCreationInputTokens)*inputPrice +
+					float64(usage.OutputTokens)*outputPrice +
+					float64(usage.CacheCreationInputTokens)*cacheWritePrice
+				if billingSource == BillingModelSourceUpstream {
+					expected = expectedOpenAICost(t, svc, upstreamModel, usage, 1).TotalCost
+				}
+
+				require.NoError(t, svc.RecordUsage(context.Background(), input))
+				require.NotNil(t, usageRepo.lastLog)
+				require.InDelta(t, expected, usageRepo.lastLog.TotalCost, 1e-12)
+				require.InDelta(t, expected, usageRepo.lastLog.ActualCost, 1e-12)
+				require.InDelta(t, expected, userRepo.lastAmount, 1e-12)
+				require.Equal(t, 2, usageRepo.lastLog.InputTokens)
+				require.Equal(t, requestedModel, usageRepo.lastLog.Model)
+				require.NotNil(t, usageRepo.lastLog.UpstreamModel)
+				require.Equal(t, upstreamModel, *usageRepo.lastLog.UpstreamModel)
+			})
+		}
+	}
+}

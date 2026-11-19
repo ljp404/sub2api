@@ -217,7 +217,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if result.BillingModel != "" {
 		billingModel = strings.TrimSpace(result.BillingModel)
 	}
-	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" && input.ChannelMappedModel != input.OriginalModel {
+	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" &&
+		(input.ChannelMappedModel != input.OriginalModel || s.resolveOpenAIChannelPricing(ctx, input.ChannelMappedModel, apiKey) != nil) {
+		// An unchanged channel model can still have explicit pricing (e.g. a
+		// supplier alias). Preserve derived image-tool pricing when it does not.
 		billingModel = input.ChannelMappedModel
 	}
 	if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {
