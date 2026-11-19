@@ -353,17 +353,23 @@ func (s *OpenAIGatewayService) SelectGrokMediaVideoRequestAccount(
 
 func (s *OpenAIGatewayService) SelectMediaVideoRequestAccount(
 	ctx context.Context, groupID *int64, sessionHash string, accountID int64, requestedModel, platform string,
+	requiredCapability ...OpenAIEndpointCapability,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	decision := OpenAIAccountScheduleDecision{Layer: openAIAccountScheduleLayerSessionSticky}
 	if accountID <= 0 || strings.TrimSpace(sessionHash) == "" {
 		return nil, decision, ErrNoAvailableAccounts
 	}
 	ctx = s.withOpenAIGroupPrivacyRequirement(WithOpenAIProfitControlSuppressed(ctx), groupID)
+	var capability OpenAIEndpointCapability
+	if len(requiredCapability) > 0 {
+		capability = requiredCapability[0]
+	}
 	scheduler := &defaultOpenAIAccountScheduler{service: s}
 	selection, _, err := scheduler.selectBySessionHash(ctx, OpenAIAccountScheduleRequest{
 		GroupID: groupID, Platform: platform, SessionHash: sessionHash,
 		StickyAccountID: accountID, PreserveStickyBinding: true, DisableStickyEscape: true,
 		RequestedModel: requestedModel, RequiredTransport: OpenAIUpstreamTransportHTTPSSE,
+		RequiredCapability: capability,
 		RequirePrivacySet: s.openAIGroupRequiresPrivacySet(ctx, groupID),
 	})
 	if err != nil {

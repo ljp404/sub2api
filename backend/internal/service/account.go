@@ -1112,6 +1112,14 @@ func (a *Account) GetGeminiBaseURL(defaultBaseURL string) string {
 	if baseURL == "" {
 		return defaultBaseURL
 	}
+	if a.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityGeminiImages) {
+		baseURL = strings.TrimRight(baseURL, "/")
+		for _, suffix := range []string{"/v1beta", "/v1"} {
+			if strings.HasSuffix(baseURL, suffix) {
+				return strings.TrimSuffix(baseURL, suffix)
+			}
+		}
+	}
 	if a.Platform == PlatformAntigravity && a.Type == AccountTypeAPIKey {
 		return strings.TrimRight(baseURL, "/") + "/antigravity"
 	}
@@ -1917,9 +1925,10 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	if a == nil {
 		return false
 	}
-	if capability == OpenAIEndpointCapabilitySeedance {
+	if capability == OpenAIEndpointCapabilitySeedance || capability == OpenAIEndpointCapabilityGeminiImages ||
+		capability == OpenAIEndpointCapabilityMiniMaxVideo {
 		configured, _ := a.openAIEndpointCapabilitySet()
-		return configured["seedance"] && a.Platform == PlatformOpenAI && a.Type == AccountTypeAPIKey &&
+		return configured[string(capability)] && a.Platform == PlatformOpenAI && a.Type == AccountTypeAPIKey &&
 			strings.TrimSpace(a.GetCredential("base_url")) != ""
 	}
 	if capability == "" {

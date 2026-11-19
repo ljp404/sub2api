@@ -12,7 +12,7 @@ import (
 const geminiImageModalityEnum = 2
 
 // GeminiImageGenerationDenied 判断 Gemini 系请求是否因分组关闭生图而必须拒绝。
-// 门禁只作用于后台展示该开关的 Gemini 系分组（gemini / antigravity / composite）；
+// 门禁只作用于后台展示该开关的分组（openai / gemini / antigravity / composite）；
 // 无分组的 Key 与其他平台分组不受影响。models 中任一名字属于生图模型，
 // 或请求体要求输出 IMAGE 模态，即视为生图请求。
 func GeminiImageGenerationDenied(group *Group, geminiBody []byte, models ...string) bool {
@@ -20,7 +20,7 @@ func GeminiImageGenerationDenied(group *Group, geminiBody []byte, models ...stri
 		return false
 	}
 	switch group.Platform {
-	case PlatformGemini, PlatformAntigravity, PlatformComposite:
+	case PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformComposite:
 	default:
 		return false
 	}

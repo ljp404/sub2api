@@ -133,8 +133,8 @@ func (s *OpenAIGatewayService) ForwardMiniMaxVideoPriced(
 			}
 		}()
 	}
-	if account == nil || account.Platform != PlatformMiniMax || !account.IsMultiProtocolAPIKey() || account.Type != AccountTypeAPIKey {
-		return nil, fmt.Errorf("MiniMax video requires a MiniMax API key account")
+	if !supportsMiniMaxVideoAccount(account) {
+		return nil, fmt.Errorf("MiniMax video requires a MiniMax API key account or an OpenAI API key account with the MiniMax Video endpoint capability")
 	}
 	if endpoint != MiniMaxVideoEndpointCreate && endpoint != MiniMaxVideoEndpointStatus {
 		return nil, fmt.Errorf("unsupported MiniMax video endpoint")

@@ -75,7 +75,7 @@ func normalizeBulkOpenAIEndpointCapabilities(raw any) (any, bool, error) {
 		return nil, true, nil
 	}
 
-	values := make([]string, 0, 2)
+	values := make([]string, 0, 5)
 	switch typed := raw.(type) {
 	case []any:
 		for _, item := range typed {
@@ -91,10 +91,11 @@ func normalizeBulkOpenAIEndpointCapabilities(raw any) (any, bool, error) {
 		return nil, false, invalidBulkOpenAIEndpointCapabilities()
 	}
 
-	selected := make(map[string]bool, 2)
+	selected := make(map[string]bool, 5)
 	for _, value := range values {
 		switch OpenAIEndpointCapability(value) {
-		case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityEmbeddings:
+		case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityEmbeddings,
+			OpenAIEndpointCapabilitySeedance, OpenAIEndpointCapabilityGeminiImages, OpenAIEndpointCapabilityMiniMaxVideo:
 			selected[value] = true
 		default:
 			return nil, false, invalidBulkOpenAIEndpointCapabilities()
@@ -105,19 +106,25 @@ func normalizeBulkOpenAIEndpointCapabilities(raw any) (any, bool, error) {
 	}
 
 	includeChat := selected[string(OpenAIEndpointCapabilityChatCompletions)]
-	if includeChat && selected[string(OpenAIEndpointCapabilityEmbeddings)] {
+	if len(selected) == 2 && includeChat && selected[string(OpenAIEndpointCapabilityEmbeddings)] {
 		return nil, true, nil
 	}
-	if includeChat {
-		return []string{string(OpenAIEndpointCapabilityChatCompletions)}, true, nil
+	capabilities := make([]string, 0, len(selected))
+	for _, capability := range []OpenAIEndpointCapability{
+		OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityEmbeddings,
+		OpenAIEndpointCapabilitySeedance, OpenAIEndpointCapabilityGeminiImages, OpenAIEndpointCapabilityMiniMaxVideo,
+	} {
+		if selected[string(capability)] {
+			capabilities = append(capabilities, string(capability))
+		}
 	}
-	return []string{string(OpenAIEndpointCapabilityEmbeddings)}, false, nil
+	return capabilities, includeChat, nil
 }
 
 func invalidBulkOpenAIEndpointCapabilities() error {
 	return infraerrors.BadRequest(
 		"OPENAI_ENDPOINT_CAPABILITIES_INVALID",
-		"openai_capabilities must contain chat_completions, embeddings, or both",
+		"openai_capabilities must contain one or more of chat_completions, embeddings, seedance, gemini_images, minimax_video",
 	)
 }
 

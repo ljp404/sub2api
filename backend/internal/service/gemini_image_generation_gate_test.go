@@ -62,7 +62,8 @@ func TestGeminiImageGenerationDenied_GroupScope(t *testing.T) {
 		{name: "composite disabled", group: &Group{Platform: PlatformComposite}, want: true},
 		{name: "gemini enabled", group: &Group{Platform: PlatformGemini, AllowImageGeneration: true}, want: false},
 		{name: "anthropic group without the switch", group: &Group{Platform: PlatformAnthropic}, want: false},
-		{name: "openai group gated elsewhere", group: &Group{Platform: PlatformOpenAI}, want: false},
+		{name: "openai native images disabled", group: &Group{Platform: PlatformOpenAI}, want: true},
+		{name: "openai native images enabled", group: &Group{Platform: PlatformOpenAI, AllowImageGeneration: true}, want: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

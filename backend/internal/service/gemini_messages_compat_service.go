@@ -1127,6 +1127,12 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
 		mappedModel = account.GetMappedModel(originalModel)
 	}
+	if account.Platform == PlatformOpenAI &&
+		(!account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityGeminiImages) ||
+			(action != "generateContent" && action != "streamGenerateContent") ||
+			!GeminiImageGenerationIntent(body, originalModel, mappedModel)) {
+		return nil, s.writeGoogleError(c, http.StatusBadRequest, "OpenAI accounts require the Gemini Images endpoint capability and a Gemini image generation request")
+	}
 	if action != "countTokens" && geminiImageGenerationDenied(c, body, originalModel, mappedModel) {
 		return nil, s.writeGoogleError(c, http.StatusBadRequest, ImageGenerationPermissionMessage())
 	}

@@ -143,12 +143,12 @@ func RegisterGatewayRoutes(
 		// handler verifies the task's API key, user, group, and bound account
 		// before selecting the original MiniMax account.
 		compositeTaskLookup := platform == service.PlatformComposite && c.Request.Method == http.MethodGet
-		if platform != service.PlatformMiniMax && !compositeTaskLookup {
+		if platform != service.PlatformMiniMax && platform != service.PlatformOpenAI && !compositeTaskLookup {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": gin.H{
 					"type":    "not_found_error",
-					"message": "MiniMax Video V2 API is only supported for MiniMax groups",
+					"message": "MiniMax Video V2 API requires a MiniMax, OpenAI or composite group",
 				},
 			})
 			return

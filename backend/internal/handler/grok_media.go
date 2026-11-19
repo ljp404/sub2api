@@ -75,6 +75,9 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	if endpoint.IsMiniMaxVideo() && effectiveAPIKeyPlatform(c, apiKey) == service.PlatformOpenAI {
+		platform = service.PlatformOpenAI
+	}
 
 	reqLog := requestLogger(
 		c,
@@ -242,6 +245,9 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	}
 	routingStart := time.Now()
 	requiredCapability := grokMediaRequiredCapability(endpoint)
+	if endpoint.IsMiniMaxVideo() && platform == service.PlatformOpenAI {
+		requiredCapability = service.OpenAIEndpointCapabilityMiniMaxVideo
+	}
 	var accountReleaseFunc func()
 	releaseAccount := func() {
 		if accountReleaseFunc != nil {
@@ -258,11 +264,13 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		}
 		var selection *service.AccountSelectionResult
 		var scheduleDecision service.OpenAIAccountScheduleDecision
-		if boundLookupAccountID > 0 {
-			selection, scheduleDecision, err = h.gatewayService.SelectMediaVideoRequestAccount(
-				requestCtx, apiKey.GroupID, sessionHash, boundLookupAccountID, routingModel, platform,
-			)
-		} else {
+		selectAccount := func() {
+			if boundLookupAccountID > 0 {
+				selection, scheduleDecision, err = h.gatewayService.SelectMediaVideoRequestAccount(
+					requestCtx, apiKey.GroupID, sessionHash, boundLookupAccountID, routingModel, platform, requiredCapability,
+				)
+				return
+			}
 			selection, scheduleDecision, err = h.gatewayService.SelectAccountWithSchedulerForCapability(
 				requestCtx,
 				apiKey.GroupID,
@@ -277,6 +285,14 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				false,
 				platform,
 			)
+		}
+		selectAccount()
+		if endpoint.IsMiniMaxVideo() && platform == service.PlatformMiniMax &&
+			errors.Is(err, service.ErrNoAvailableAccounts) &&
+			(boundLookupAccountID > 0 || canFallbackToOpenAIMiniMaxVideo(c, apiKey)) {
+			platform = service.PlatformOpenAI
+			requiredCapability = service.OpenAIEndpointCapabilityMiniMaxVideo
+			selectAccount()
 		}
 		// Own an eagerly acquired slot before any rejection or eligibility probe.
 		// Forwarding takes over the same once-only release after admission.

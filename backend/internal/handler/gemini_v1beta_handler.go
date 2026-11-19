@@ -344,6 +344,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	effectivePlatform := effectiveAPIKeyPlatform(c, apiKey)
 	if !middleware.HasForcePlatform(c) {
 		if effectivePlatform != service.PlatformGemini &&
+			effectivePlatform != service.PlatformOpenAI &&
 			!servesCompositeAntigravityGemini(apiKey, effectivePlatform) {
 			googleError(c, http.StatusBadRequest, "API key group platform is not gemini")
 			return
@@ -413,6 +414,11 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	)
 	if geminiImageIntent {
 		c.Request = c.Request.WithContext(service.WithGeminiImageGenerationEndpoint(c.Request.Context()))
+	}
+	if !middleware.HasForcePlatform(c) && effectivePlatform == service.PlatformOpenAI &&
+		(!geminiImageIntent || (action != "generateContent" && action != "streamGenerateContent")) {
+		googleError(c, http.StatusBadRequest, "OpenAI groups only support Gemini image generation through accounts with the Gemini Images endpoint capability")
+		return
 	}
 
 	// 引用显式缓存的请求只能发往持有该缓存的账号，且不参与会话粘性与换号。
@@ -600,7 +606,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		if cachedContentExclusions != nil {
 			excludedAccountIDs = mergeAccountIDSets(cachedContentExclusions, fs.FailedAccountIDs)
 		}
-		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, modelName, excludedAccountIDs, "", int64(0)) // Gemini 不使用会话限制
+		selection, err := h.selectGeminiNativeAccount(c, apiKey, sessionKey, modelName, excludedAccountIDs, geminiImageIntent)
 		if err == nil && cachedContentBinding != nil && selection.Account.ID != cachedContentBinding.AccountID {
 			if selection.Acquired && selection.ReleaseFunc != nil {
 				selection.ReleaseFunc()
