@@ -142,7 +142,8 @@ button.quiet {
   border-color: #dce2ff;
   font-weight: 600;
 }
-.billing .chip.active {
+.billing .chip.active,
+.suppliers .chip.active {
   color: #b45113;
   background: #fff4e9;
   border-color: #f7dfc4;
@@ -151,14 +152,6 @@ button.quiet {
   color: #bf355d;
   background: #fff0f4;
   border-color: #ffd9e4;
-}
-.groups {
-  grid-template-columns: 1fr;
-}
-.groups .chip {
-  justify-content: space-between;
-  text-align: left;
-  padding: 8px 10px;
 }
 .count {
   font-size: 11px;
