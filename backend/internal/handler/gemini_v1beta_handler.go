@@ -89,6 +89,7 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		if apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
 			ids = apiKey.Group.ModelAllowlist.FilterForListing(ids)
 		}
+		ids = service.PublicModelIDs(ids)
 		declaredModels := make([]gemini.Model, 0, len(ids))
 		for _, id := range ids {
 			declaredModels = append(declaredModels, gemini.FallbackModel(id))

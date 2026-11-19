@@ -1339,6 +1339,7 @@ func (h *GatewayHandler) compositeAvailableModels(ctx context.Context, groupID *
 }
 
 func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
+	modelIDs = service.PublicModelIDs(modelIDs)
 	if platform == service.PlatformOpenAI {
 		writeOpenAIModelsList(c, modelIDs)
 		return
@@ -1428,6 +1429,7 @@ func grokModelSupportsConfigurableReasoning(modelID string) bool {
 }
 
 func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
+	modelIDs = service.PublicModelIDs(modelIDs)
 	defaultsByID := make(map[string]openai.Model, len(openai.DefaultModels))
 	for _, model := range openai.DefaultModels {
 		defaultsByID[model.ID] = model

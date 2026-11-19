@@ -43,8 +43,14 @@ func RegisterGatewayRoutes(
 	requireGroupGoogle := middleware.RequireGroupAssignment(settingService, middleware.GoogleErrorWriter)
 
 	// 分组级模型白名单准入：在 apiKeyAuth 之后、compositeTarget 之前，
-	// 保证校验发生在合成路由改写与调度之前，且只看客户端书写的模型名。
-	groupModelAllowlist := middleware.GroupModelAllowlist()
+	// 基础模型先解析为获准的渠道别名，再进行白名单校验和协议调度。
+	allowlistAdmission := middleware.GroupModelAllowlist()
+	groupModelAllowlist := func(c *gin.Context) {
+		h.Gateway.ResolvePublicModelRoute(c)
+		if !c.IsAborted() {
+			allowlistAdmission(c)
+		}
+	}
 
 	isOpenAIResponsesCompatibleGatewayPlatform := func(c *gin.Context) bool {
 		// openai、grok 与多协议 API Key 供应商经 OpenAI 网关转发（平台清单）。
@@ -572,6 +578,10 @@ func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver)
 		resolver = service.NewCompositeRouteResolver(nil)
 	}
 	return func(c *gin.Context) {
+		if _, resolved := service.ResolvedUpstreamModelFromContext(c.Request.Context()); resolved {
+			c.Next()
+			return
+		}
 		apiKey, ok := middleware.GetAPIKeyFromContext(c)
 		if !ok || apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite {
 			c.Next()
@@ -636,6 +646,10 @@ func compositeGeminiTargetPlatformMiddleware(resolver *service.CompositeRouteRes
 		resolver = service.NewCompositeRouteResolver(nil)
 	}
 	return func(c *gin.Context) {
+		if _, resolved := service.ResolvedUpstreamModelFromContext(c.Request.Context()); resolved {
+			c.Next()
+			return
+		}
 		apiKey, ok := middleware.GetAPIKeyFromContext(c)
 		if ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
 			model := compositeGeminiModelFromParams(c)

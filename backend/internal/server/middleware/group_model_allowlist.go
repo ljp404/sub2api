@@ -73,6 +73,23 @@ func GroupModelAllowlist() gin.HandlerFunc {
 		blocked := ""
 		for _, candidate := range models {
 			if !allowlist.Allows(candidate) {
+				if selected, exists := service.RequestedPublicModelFromContext(c.Request.Context()); exists &&
+					service.PublicModelID(selected) == candidate && allowlist.Allows(selected) {
+					continue
+				}
+				if c.Request.Method == http.MethodGet &&
+					(c.FullPath() == "/v1/models/:model" || c.FullPath() == "/models/:model") {
+					allowedPublic := false
+					for _, configured := range allowlist.Models {
+						if strings.EqualFold(service.PublicModelID(configured), candidate) {
+							allowedPublic = true
+							break
+						}
+					}
+					if allowedPublic {
+						continue
+					}
+				}
 				blocked = candidate
 				break
 			}
@@ -111,6 +128,18 @@ func isResponsesWebSocketRoute(c *gin.Context) bool {
 // 不敏感）与 multipart 表单（首/末字段）三类解析器，这里返回「任一解析器可能
 // 绑定到的全部模型值」，调用方必须逐一校验，任一未命中即拒绝。
 func groupModelAllowlistModelsFromBody(c *gin.Context) ([]string, bool) {
+	result, ok := ReadPublicModelRouteBody(c)
+	return result.Models, ok
+}
+
+type PublicModelRouteBody struct {
+	Body   []byte
+	Models []string
+}
+
+// ReadPublicModelRouteBody shares the bounded preread and candidate extraction
+// with model admission, including duplicate-field protection.
+func ReadPublicModelRouteBody(c *gin.Context) (PublicModelRouteBody, bool) {
 	body, err := httputil.ReadRequestBodyWithPrealloc(c.Request)
 	if err != nil {
 		status := http.StatusBadRequest
@@ -122,10 +151,12 @@ func groupModelAllowlistModelsFromBody(c *gin.Context) ([]string, bool) {
 		}
 		c.JSON(status, gin.H{"error": gin.H{"type": "invalid_request_error", "message": message}})
 		c.Abort()
-		return nil, false
+		return PublicModelRouteBody{}, false
 	}
 	requestmodel.ResetRequestBody(c.Request, body)
-	return requestmodel.FromBodyCandidates(c.FullPath(), c.GetHeader("Content-Type"), body), true
+	return PublicModelRouteBody{
+		Body: body, Models: requestmodel.FromBodyCandidates(c.FullPath(), c.GetHeader("Content-Type"), body),
+	}, true
 }
 
 // groupModelAllowlistModelFromParams 从路由参数提取模型名：Gemini 原生 URL 的

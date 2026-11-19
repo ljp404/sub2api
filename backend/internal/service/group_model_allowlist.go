@@ -154,6 +154,7 @@ func groupModelAllowlistCandidates(model string) []string {
 	}
 
 	add(model)
+	add(PublicModelID(model))
 	add(strings.TrimPrefix(model, "models/"))
 	add(claude.NormalizeModelID(strings.TrimSuffix(model, "-thinking")))
 	add(NormalizeOpenAICompatRequestedModel(model))
@@ -228,6 +229,9 @@ func (a GroupModelAllowlist) FilterForListing(source []string) []string {
 func allowlistSourcePatternAllowsModel(patterns []string, model string) bool {
 	for _, pattern := range patterns {
 		if strings.EqualFold(pattern, model) {
+			return true
+		}
+		if strings.EqualFold(PublicModelID(pattern), model) {
 			return true
 		}
 		if strings.HasSuffix(pattern, "*") && strings.HasPrefix(strings.ToLower(model), strings.ToLower(strings.TrimSuffix(pattern, "*"))) {
