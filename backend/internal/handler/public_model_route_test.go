@@ -51,6 +51,48 @@ func TestPublicModelRouteRewritesBeforeAllowlisting(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			router.ServeHTTP(rec, req)
 			require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+			require.Equal(t, "gpt-6.1-sol/hjwl", rec.Result().Header.Get("X-Routed-Model"))
+		})
+	}
+}
+
+func TestPublicModelRouteHeaderPreservesSelectedAliasWhenResponseStarts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const groupID int64 = 9921
+	handler := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{
+		byGroup: map[int64][]service.Account{groupID: {{
+			ID: 1, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
+			Status: service.StatusActive, Schedulable: true,
+			Credentials: map[string]any{"model_mapping": map[string]any{"gpt-6.1-sol/hjwl": "gpt-6.1-sol"}},
+		}}},
+	})
+	for _, requested := range []string{"gpt-6.1-sol", "gpt-6.1-sol/hjwl"} {
+		t.Run(requested, func(t *testing.T) {
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+					GroupID: &groupID, Group: &service.Group{ID: groupID, Platform: service.PlatformComposite},
+				})
+			})
+			router.POST("/v1/chat/completions", handler.ResolvePublicModelRoute, func(c *gin.Context) {
+				// Account retries clear attempt metadata, but retain the selected channel alias.
+				service.SetOpsUpstreamModel(c, "failed-attempt")
+				service.ClearOpsUpstreamModel(c)
+				service.SetOpsUpstreamModel(c, "gpt-6.1-sol")
+				c.Header("Content-Type", "text/event-stream")
+				c.Writer.WriteHeader(http.StatusOK)
+				c.Writer.Flush()
+				_, err := c.Writer.Write([]byte("data: [DONE]\n\n"))
+				require.NoError(t, err)
+			})
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+				strings.NewReader(`{"model":"`+requested+`","messages":[],"stream":true}`))
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.Equal(t, "gpt-6.1-sol/hjwl", rec.Result().Header.Get("X-Routed-Model"))
+			require.Equal(t, "data: [DONE]\n\n", rec.Body.String())
 		})
 	}
 }

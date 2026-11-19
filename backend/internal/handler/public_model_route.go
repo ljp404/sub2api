@@ -54,6 +54,9 @@ func (h *GatewayHandler) ResolvePublicModelRoute(c *gin.Context) {
 		}})
 		return
 	}
+	if selected != "" {
+		c.Header("X-Routed-Model", selected)
+	}
 	if platform == "" {
 		return
 	}
