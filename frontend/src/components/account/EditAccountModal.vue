@@ -476,27 +476,25 @@
               </div>
             </div>
 
+            <ModelWhitelistSelector
+              v-if="account.platform !== 'grok'"
+              v-model="allowedModels"
+              v-model:model-mappings="modelMappings"
+              mapping-mode
+              :account-name="form.name"
+              :platform="account.platform"
+              :account-id="account.id"
+              :sync-credentials="editModelSyncCredentials"
+              @add-mapping="addModelMapping"
+            />
             <button
+              v-else
               type="button"
+              data-testid="grok-model-mapping-add"
+              class="mb-3 inline-flex items-center gap-1 py-2 text-xs text-primary-700 dark:text-primary-300"
               @click="addModelMapping"
-              :data-testid="account.platform === 'grok' ? 'grok-model-mapping-add' : undefined"
-              :class="account.platform === 'grok'
-                ? 'mb-3 inline-flex items-center gap-1 py-2 text-xs text-primary-700 dark:text-primary-300'
-                : 'mb-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300'"
             >
-              <svg
-                class="mr-1 inline h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              <Icon name="plus" size="sm" class="mr-1 inline-block" />
               {{ t('admin.accounts.addMapping') }}
             </button>
 

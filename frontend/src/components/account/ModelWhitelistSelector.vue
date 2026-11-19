@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Multi-select Dropdown -->
-    <div class="relative mb-3">
+    <div v-if="!mappingMode" class="relative mb-3">
       <div
         @click="toggleDropdown"
         class="cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-dark-500 dark:bg-dark-700"
@@ -93,35 +93,37 @@
     </div>
 
     <!-- Quick Actions -->
-    <div class="mb-4 flex flex-wrap gap-2">
+    <div :class="mappingMode ? 'mb-3 grid grid-cols-3 items-stretch gap-2' : 'mb-4 flex flex-wrap gap-2'">
       <button
         type="button"
-        @click="fillRelated"
-        class="rounded-lg border border-blue-200 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/30"
+        @click="mappingMode ? emit('add-mapping') : fillRelated()"
+        class="min-w-0 rounded-lg border border-blue-200 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/30"
       >
-        {{ t('admin.accounts.fillRelatedModels') }}
+        <Icon v-if="mappingMode" name="plus" size="sm" class="mr-1 inline-block" />
+        {{ mappingMode ? t('admin.accounts.addMapping') : t('admin.accounts.fillRelatedModels') }}
       </button>
       <button
-        v-if="canSyncUpstream && showSyncButton"
+        v-if="mappingMode || (canSyncUpstream && showSyncButton)"
         type="button"
         data-testid="sync-upstream-models"
         @click="syncUpstreamModels"
-        :disabled="isSyncingUpstream"
-        class="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+        :disabled="isSyncingUpstream || !canSyncUpstream"
+        class="min-w-0 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
       >
         {{ isSyncingUpstream ? t('admin.accounts.syncUpstreamModelsLoading') : t('admin.accounts.syncUpstreamModels') }}
       </button>
       <button
         type="button"
         @click="clearAll"
-        class="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+        :disabled="mappingMode && isSyncingUpstream"
+        class="min-w-0 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
       >
         {{ t('admin.accounts.clearAllModels') }}
       </button>
     </div>
 
     <!-- Custom Model Input -->
-    <div class="mb-3">
+    <div v-if="!mappingMode" class="mb-3">
       <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.customModelName') }}</label>
       <div class="flex gap-2">
         <input
@@ -154,7 +156,7 @@ import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import { useClipboard } from '@/composables/useClipboard'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
+import { allModels, getModelsByPlatform, mergeUpstreamModelMappings } from '@/composables/useModelWhitelist'
 import { supportsUpstreamModelSync } from '@/constants/platformCatalog'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
@@ -163,6 +165,8 @@ const { t } = useI18n()
 const props = withDefaults(defineProps<{
   modelValue: string[]
   modelMappings?: { from: string; to: string }[]
+  mappingMode?: boolean
+  accountName?: string
   platform?: string
   platforms?: string[]
   accountId?: number
@@ -177,6 +181,8 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
+  'update:modelMappings': [value: { from: string; to: string }[]]
+  'add-mapping': []
   'upstream-synced': []
   'upstream-sync-finished': []
 }>()
@@ -346,16 +352,22 @@ const syncUpstreamModels = async () => {
       emit('upstream-synced')
     }
 
-    const newModels = [...props.modelValue]
     let addedCount = 0
-    for (const model of upstreamModels) {
-      if (!newModels.includes(model)) {
-        newModels.push(model)
-        addedCount += 1
+    if (props.mappingMode) {
+      const mappings = props.modelMappings ?? []
+      const newMappings = mergeUpstreamModelMappings(mappings, upstreamModels, props.accountName ?? '')
+      addedCount = newMappings.length - mappings.filter(mapping => mapping.from.trim() || mapping.to.trim()).length
+      emit('update:modelMappings', newMappings)
+    } else {
+      const newModels = [...props.modelValue]
+      for (const model of upstreamModels) {
+        if (!newModels.includes(model)) {
+          newModels.push(model)
+          addedCount += 1
+        }
       }
+      emit('update:modelValue', newModels)
     }
-
-    emit('update:modelValue', newModels)
     const warnings = result.warnings ?? []
     const hasPartialMetadata = warnings.some(
       warning => warning.code === 'upstream_model_metadata_partial'
@@ -392,7 +404,11 @@ const syncUpstreamModels = async () => {
 defineExpose({ syncUpstreamModels, isSyncingUpstream })
 
 const clearAll = () => {
-  emit('update:modelValue', [])
+  if (props.mappingMode) {
+    emit('update:modelMappings', [])
+  } else {
+    emit('update:modelValue', [])
+  }
 }
 
 </script>

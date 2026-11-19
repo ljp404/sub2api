@@ -578,6 +578,25 @@ export interface ModelMappingEntry {
   to: string
 }
 
+export function mergeUpstreamModelMappings(
+  mappings: ModelMappingEntry[],
+  models: string[],
+  accountName: string
+): ModelMappingEntry[] {
+  const suffix = accountName.trim().match(/-([A-Za-z0-9]+)$/)?.[1]
+  const result = mappings.filter(mapping => mapping.from.trim() || mapping.to.trim())
+  const existing = new Set(result.map(mapping => mapping.from.trim()))
+  for (const rawModel of models) {
+    const model = rawModel.trim()
+    if (!model) continue
+    const from = suffix ? `${model}/${suffix}` : model
+    if (existing.has(from)) continue
+    result.push({ from, to: model })
+    existing.add(from)
+  }
+  return result
+}
+
 export function splitModelMappingObject(
   modelMapping?: Record<string, unknown> | null
 ): { allowedModels: string[]; modelMappings: ModelMappingEntry[] } {

@@ -4,10 +4,44 @@ vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn()
 }))
 
-import { buildModelMappingObject, getModelsByPlatform, getPresetMappingsByPlatform, splitModelMappingObject } from '../useModelWhitelist'
+import { buildModelMappingObject, getModelsByPlatform, getPresetMappingsByPlatform, mergeUpstreamModelMappings, splitModelMappingObject } from '../useModelWhitelist'
 import { BUILTIN_PLATFORM_CATALOG, resetPlatformCatalog, setPlatformCatalog } from '@/constants/platformCatalog'
 
 describe('useModelWhitelist', () => {
+  it.each(['hjwl', 'JC123', '123'])('adds the final account-name segment %s only to request models', suffix => {
+    expect(mergeUpstreamModelMappings([], ['claude-opus-4-7', 'gpt-6.1-sol'], `provider-relay-${suffix}`)).toEqual([
+      { from: `claude-opus-4-7/${suffix}`, to: 'claude-opus-4-7' },
+      { from: `gpt-6.1-sol/${suffix}`, to: 'gpt-6.1-sol' }
+    ])
+  })
+
+  it.each(['provider', 'provider-', 'provider-供应商', 'provider-a_b', 'provider-a.b', 'provider-a b'])(
+    'keeps upstream IDs when the account name has no alphanumeric suffix: %s',
+    name => {
+      expect(mergeUpstreamModelMappings([], ['gpt-6'], name)).toEqual([{ from: 'gpt-6', to: 'gpt-6' }])
+    }
+  )
+
+  it('trims IDs and names, removes empty rows, and deduplicates upstream results', () => {
+    expect(mergeUpstreamModelMappings([{ from: '', to: '' }], [' gpt-6 ', 'gpt-6', '', '   '], ' relay-hjwl ')).toEqual([
+      { from: 'gpt-6/hjwl', to: 'gpt-6' }
+    ])
+  })
+
+  it('preserves custom mappings and incomplete drafts without mutating the original array', () => {
+    const original = [
+      { from: 'gpt-6/hjwl', to: 'custom-target' },
+      { from: 'draft', to: '' }
+    ]
+    const result = mergeUpstreamModelMappings(original, ['gpt-6', 'claude-opus-4-7'], 'relay-hjwl')
+    expect(result).toEqual([
+      ...original,
+      { from: 'claude-opus-4-7/hjwl', to: 'claude-opus-4-7' }
+    ])
+    expect(original).toHaveLength(2)
+    expect(mergeUpstreamModelMappings(result, ['gpt-6', 'claude-opus-4-7'], 'relay-hjwl')).toEqual(result)
+  })
+
   it('平台清单中没有内置模型列表的多协议供应商不预填白名单', () => {
     setPlatformCatalog({
       ...BUILTIN_PLATFORM_CATALOG,

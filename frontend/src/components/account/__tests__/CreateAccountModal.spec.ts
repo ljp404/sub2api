@@ -129,9 +129,10 @@ const ModelWhitelistSelectorStub = defineComponent({
     },
     platform: String,
     syncCredentials: Object,
+    mappingMode: Boolean,
   },
-  emits: ['update:modelValue', 'upstream-synced'],
-  template: `<button
+  emits: ['update:modelValue', 'upstream-synced', 'add-mapping'],
+  template: `<button v-if="mappingMode" type="button" @click="$emit('add-mapping')">admin.accounts.addMapping</button><button v-else
     type="button"
     data-testid="model-whitelist-selector"
     @click="$emit('update:modelValue', ['public-glm']); $emit('upstream-synced')"
