@@ -2,6 +2,7 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { formatScaled, resolveIntervalPrices } from '@/utils/pricing'
 import geminiIcon from './gemini.svg?raw'
+import qwenIcon from './qwen.svg?raw'
 
 export function mountPlaza(root, fetchPlaza, authenticated) {
   const lifecycle = new AbortController()
@@ -13,6 +14,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
   const ASSETS = {
     gemini: `data:image/svg+xml,${encodeURIComponent(geminiIcon)}`,
     google: `data:image/svg+xml,${encodeURIComponent(geminiIcon)}`,
+    qwen: `data:image/svg+xml,${encodeURIComponent(qwenIcon)}`,
     doubao: `data:image/svg+xml,${encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
         '<path fill="#1E37FC" d="M5.31 15.756c.172-3.75 1.883-5.999 2.549-6.739-3.26 2.058-5.425 5.658-6.358 8.308v1.12C1.501 21.513 4.226 24 7.59 24a6.59 6.59 0 002.2-.375c.353-.12.7-.248 1.039-.378.913-.899 1.65-1.91 2.243-2.992-4.877 2.431-7.974.072-7.763-4.5l.002.001z"/>' +
@@ -118,14 +120,24 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     'deepseek',
     'minimax',
     'zhipu',
+    'qwen',
     'doubao',
   ])
   function providerForModel(name, platform) {
-    return String(name || '')
-      .toLowerCase()
-      .startsWith('seedance')
-      ? 'doubao'
-      : platform || 'unknown'
+    const model = String(name || '').toLowerCase()
+    // Model identity takes precedence over the account's upstream protocol.
+    const rules = [
+      ['doubao', /seedance|doubao/],
+      ['gemini', /gemini|gemma|learnlm|imagen-|veo-/],
+      ['anthropic', /claude/],
+      ['qwen', /qwen|qwq/],
+      ['minimax', /minimax|abab/],
+      ['deepseek', /deepseek/],
+      ['kimi', /kimi|moonshot/],
+      ['zhipu', /glm|cogview|cogvideo/],
+      ['openai', /(?:^|\/)(?:gpt|o[134](?:-|$))|chatgpt|dall-e|whisper|tts-1|text-embedding-3|text-moderation/],
+    ]
+    return rules.find(([, pattern]) => pattern.test(model))?.[0] || platform || 'unknown'
   }
   const billingNames = {
     token: '按量计费',

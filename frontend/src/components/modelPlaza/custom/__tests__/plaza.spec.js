@@ -3,6 +3,56 @@ import { mountPlaza } from '../plaza'
 import markup from '../plaza.html?raw'
 
 describe('custom model plaza provider icons', () => {
+  it.each([
+    ['gemini-3-pro-image/hgwl', 'gemini', 'Google'],
+    ['GEMINI-3-Pro/hjwl', 'gemini', 'Google'],
+    ['google/gemini-3-pro-image/hjwl', 'gemini', 'Google'],
+    ['imagen-4/hjwl', 'gemini', 'Google'],
+    ['claude-opus-4-7/hjwl', 'anthropic', 'Anthropic'],
+    ['qwen-image-2.1/jczn', 'qwen', '通义千问'],
+    ['QwQ-32B/jczn', 'qwen', '通义千问'],
+    ['MiniMax-H3-Image/jczn', 'minimax', 'MiniMax'],
+    ['doubao-seedance-2-0-260128/hjwl', 'doubao', '字节跳动'],
+    ['relay-seedance-2.5/hjwl', 'doubao', '字节跳动'],
+    ['deepseek-v3/hjwl', 'deepseek', 'DeepSeek'],
+    ['kimi-k2/hjwl', 'kimi', 'Kimi'],
+    ['glm-5/hjwl', 'zhipu', 'Zhipu GLM'],
+    ['gpt-6/hjwl', 'openai', 'OpenAI'],
+    ['custom-model/gemini', 'openai', 'OpenAI'],
+    ['custom-model/claude', 'openai', 'OpenAI'],
+  ])('classifies %s by model identity before the OpenAI platform', async (name, provider, label) => {
+    const host = document.createElement('div')
+    const root = host.attachShadow({ mode: 'open' })
+    root.innerHTML = markup
+    root.getElementById('details').close = vi.fn()
+    const dispose = mountPlaza(root, async () => ({
+      groups: [{
+        id: 1,
+        name: 'Default',
+        platform: 'openai',
+        models: [{ name, platform: 'openai', pricing: { billing_mode: 'token' } }],
+      }],
+    }), false)
+    try {
+      await vi.waitFor(() => {
+        expect(root.querySelector('.model-card')).not.toBeNull()
+      })
+      const chip = root.querySelector(`.chip[data-filter="provider"][data-value="${provider}"]`)
+      const cardIcon = root.querySelector('.model-card .brand img')
+      expect(chip?.textContent).toContain(label)
+      expect(cardIcon?.getAttribute('alt')).toBe(label)
+      expect(cardIcon?.getAttribute('src')).toMatch(/^data:image\/svg\+xml(?:;base64)?,/)
+      expect(chip?.querySelector('img')?.getAttribute('src')).toBe(cardIcon?.getAttribute('src'))
+      if (provider !== 'openai') {
+        expect(root.querySelector('.chip[data-filter="provider"][data-value="openai"]')).toBeNull()
+      }
+      chip?.click()
+      expect(root.querySelector('.model-card')?.getAttribute('data-model')).toBe(name)
+    } finally {
+      dispose()
+    }
+  })
+
   it.each(['CNY', 'USD'])('displays per-second video charges in the configured currency with the video multiplier (%s source)', async (currency) => {
     const host = document.createElement('div')
     const root = host.attachShadow({ mode: 'open' })
