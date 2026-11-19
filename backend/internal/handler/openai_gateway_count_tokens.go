@@ -239,7 +239,17 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		return
 	}
 	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
-	preferredMappedModel := resolveOpenAIMessagesDispatchMappedModel(c, apiKey, reqModel)
+	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
+	requiredCapability, capabilityErr := h.gatewayService.ResolveMessagesEndpointCapability(c.Request.Context(), apiKey.GroupID, routingModel, requestPlatform)
+	if capabilityErr != nil {
+		reqLog.Warn("openai_count_tokens.capability_resolution_failed", zap.Error(capabilityErr))
+		h.anthropicErrorResponse(c, http.StatusServiceUnavailable, "api_error", "Unable to resolve upstream Messages capability")
+		return
+	}
+	preferredMappedModel := ""
+	if requiredCapability != service.OpenAIEndpointCapabilityAnthropicMessages {
+		preferredMappedModel = resolveOpenAIMessagesDispatchMappedModel(c, apiKey, reqModel)
+	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", parsedReq.Stream))
 
 	setOpsRequestContext(c, reqModel, false)
@@ -273,8 +283,8 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		apiKey.GroupID,
 		sessionHash,
 		currentRoutingModel,
-		service.OpenAIEndpointCapabilityChatCompletions,
-		openAICompatibleRequestPlatform(c.Request.Context(), apiKey),
+		requiredCapability,
+		requestPlatform,
 	)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 	if err != nil {

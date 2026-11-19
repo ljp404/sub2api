@@ -1220,7 +1220,17 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	}
 	bindOpenAIReasoningEffortPolicyForMessagesRequest(c, apiKey, body)
 	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
-	preferredMappedModel := resolveOpenAIMessagesDispatchMappedModel(c, apiKey, reqModel)
+	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
+	requiredCapability, capabilityErr := h.gatewayService.ResolveMessagesEndpointCapability(c.Request.Context(), apiKey.GroupID, routingModel, requestPlatform)
+	if capabilityErr != nil {
+		reqLog.Warn("openai_messages.capability_resolution_failed", zap.Error(capabilityErr))
+		h.anthropicErrorResponse(c, http.StatusServiceUnavailable, "api_error", "Unable to resolve upstream Messages capability")
+		return
+	}
+	preferredMappedModel := ""
+	if requiredCapability != service.OpenAIEndpointCapabilityAnthropicMessages {
+		preferredMappedModel = resolveOpenAIMessagesDispatchMappedModel(c, apiKey, reqModel)
+	}
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
@@ -1243,8 +1253,6 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	}
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
-
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 	routingStart := time.Now()
 
@@ -1315,7 +1323,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			currentRoutingModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
-			service.OpenAIEndpointCapabilityChatCompletions,
+			requiredCapability,
 			false,
 			false,
 			true,

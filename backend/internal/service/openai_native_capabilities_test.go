@@ -12,7 +12,7 @@ import (
 )
 
 func TestOpenAINativeCapabilitiesRequireExplicitOptIn(t *testing.T) {
-	for _, capability := range []OpenAIEndpointCapability{OpenAIEndpointCapabilityGeminiImages, OpenAIEndpointCapabilityMiniMaxVideo} {
+	for _, capability := range []OpenAIEndpointCapability{OpenAIEndpointCapabilityGeminiImages, OpenAIEndpointCapabilityMiniMaxVideo, OpenAIEndpointCapabilityAnthropicMessages} {
 		t.Run(string(capability), func(t *testing.T) {
 			account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
 				Credentials: map[string]any{"base_url": "https://upstream.example/v1"}}

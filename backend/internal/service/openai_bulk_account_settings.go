@@ -95,7 +95,8 @@ func normalizeBulkOpenAIEndpointCapabilities(raw any) (any, bool, error) {
 	for _, value := range values {
 		switch OpenAIEndpointCapability(value) {
 		case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityEmbeddings,
-			OpenAIEndpointCapabilitySeedance, OpenAIEndpointCapabilityGeminiImages, OpenAIEndpointCapabilityMiniMaxVideo:
+			OpenAIEndpointCapabilitySeedance, OpenAIEndpointCapabilityGeminiImages, OpenAIEndpointCapabilityMiniMaxVideo,
+			OpenAIEndpointCapabilityAnthropicMessages:
 			selected[value] = true
 		default:
 			return nil, false, invalidBulkOpenAIEndpointCapabilities()
@@ -113,6 +114,7 @@ func normalizeBulkOpenAIEndpointCapabilities(raw any) (any, bool, error) {
 	for _, capability := range []OpenAIEndpointCapability{
 		OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityEmbeddings,
 		OpenAIEndpointCapabilitySeedance, OpenAIEndpointCapabilityGeminiImages, OpenAIEndpointCapabilityMiniMaxVideo,
+		OpenAIEndpointCapabilityAnthropicMessages,
 	} {
 		if selected[string(capability)] {
 			capabilities = append(capabilities, string(capability))
@@ -124,7 +126,7 @@ func normalizeBulkOpenAIEndpointCapabilities(raw any) (any, bool, error) {
 func invalidBulkOpenAIEndpointCapabilities() error {
 	return infraerrors.BadRequest(
 		"OPENAI_ENDPOINT_CAPABILITIES_INVALID",
-		"openai_capabilities must contain one or more of chat_completions, embeddings, seedance, gemini_images, minimax_video",
+		"openai_capabilities must contain one or more of chat_completions, embeddings, seedance, gemini_images, minimax_video, anthropic_messages",
 	)
 }
 

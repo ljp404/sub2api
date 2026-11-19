@@ -1640,7 +1640,13 @@ func (a *Account) IsAnthropicProtocol() bool {
 // （上游路径为 {base}/v1/messages）。优先取凭证 base_url，缺失时按
 // 供应商 × 接入模式返回默认端点。非 Anthropic 协议账号返回空串。
 func (a *Account) GetAnthropicProtocolBaseURL() string {
-	if a == nil || (!a.IsAnthropicProtocol() && !a.IsAdaptiveAPIProtocol()) {
+	if a == nil {
+		return ""
+	}
+	if a.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityAnthropicMessages) {
+		return strings.TrimSpace(a.GetCredential("base_url"))
+	}
+	if !a.IsAnthropicProtocol() && !a.IsAdaptiveAPIProtocol() {
 		return ""
 	}
 	if a.IsAdaptiveAPIProtocol() {
@@ -1926,7 +1932,7 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 		return false
 	}
 	if capability == OpenAIEndpointCapabilitySeedance || capability == OpenAIEndpointCapabilityGeminiImages ||
-		capability == OpenAIEndpointCapabilityMiniMaxVideo {
+		capability == OpenAIEndpointCapabilityMiniMaxVideo || capability == OpenAIEndpointCapabilityAnthropicMessages {
 		configured, _ := a.openAIEndpointCapabilitySet()
 		return configured[string(capability)] && a.Platform == PlatformOpenAI && a.Type == AccountTypeAPIKey &&
 			strings.TrimSpace(a.GetCredential("base_url")) != ""

@@ -1390,6 +1390,27 @@ describe('EditAccountModal', () => {
     ])
   })
 
+  it('preserves the native Anthropic capability when reopening and saving an account', async () => {
+    const account = buildAccount()
+    account.credentials.openai_capabilities = ['chat_completions', 'anthropic_messages']
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const label = wrapper.findAll('label').find((item) =>
+      item.text().includes('admin.accounts.openai.capabilityAnthropicMessages')
+    )
+    expect(label).toBeDefined()
+    expect((label!.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.openai_capabilities).toEqual([
+      'chat_completions', 'anthropic_messages'
+    ])
+  })
+
 	it('submits OpenAI quota auto-pause thresholds in extra', async () => {
 	  const account = buildAccount()
 	  account.extra = {

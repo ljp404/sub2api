@@ -689,7 +689,7 @@ export default {
           'Only applies to non-streaming Images responses of OpenAI API Key accounts. When an upstream image item has a url but no b64_json, the gateway downloads the url and fills b64_json with its base64 content (url is kept) for clients built on the official API; the response is returned unchanged if the download fails.',
         endpointCapabilities: 'Endpoint capabilities',
         endpointCapabilitiesDesc:
-          'Used by account routing. Text follows the Responses API support setting; Embeddings, Seedance, Gemini Images and MiniMax Video use their respective protocols with this account URL and key.',
+          'Used by account routing. Text follows the Responses API support setting; Embeddings, Seedance, Gemini Images, MiniMax Video and Anthropic Messages use their respective protocols with this account URL and key. Native Anthropic Messages requests skip the default Claude-to-GPT mapping.',
         capabilityResponses: 'Responses',
         capabilityTextAuto: 'Responses / Chat Completions (Auto)',
         capabilityResponsesAuto: 'Responses (auto probe)',
@@ -698,6 +698,7 @@ export default {
         capabilityEmbeddings: 'Embeddings',
         capabilityGeminiImages: 'Gemini Images (native protocol)',
         capabilityMiniMaxVideo: 'MiniMax Video (native protocol)',
+        capabilityAnthropicMessages: 'Anthropic Messages (native protocol)',
         responsesStatusAutoSupported: 'Auto probe: Responses',
         responsesStatusAutoUnsupported: 'Auto probe: Chat Completions',
         responsesStatusAutoUnknown: 'Auto probe: unknown',

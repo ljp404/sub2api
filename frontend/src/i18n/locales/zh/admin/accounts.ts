@@ -801,7 +801,7 @@ export default {
           '仅对 OpenAI API Key 的 Images 非流式响应生效。上游返回的图片缺少 b64_json 但带 url 时，网关下载该 url 并以 base64 回填 b64_json（url 保留），兼容按官方接口实现的客户端；下载失败则原样返回。',
         endpointCapabilities: '端点能力',
         endpointCapabilitiesDesc:
-          '用于调度筛选。文本端点跟随 Responses API 支持设置；Embeddings、Seedance、Gemini 生图和 MiniMax 视频按各自协议转发，使用当前账号的上游地址和密钥。',
+          '用于调度筛选。文本端点跟随 Responses API 支持设置；Embeddings、Seedance、Gemini 生图、MiniMax 视频和 Anthropic Messages 按各自协议转发，使用当前账号的上游地址和密钥。启用 Anthropic Messages 后，Messages 请求不应用默认 Claude → GPT 映射。',
         capabilityResponses: 'Responses',
         capabilityTextAuto: 'Responses / Chat Completions（自动）',
         capabilityResponsesAuto: 'Responses（自动探测）',
@@ -810,6 +810,7 @@ export default {
         capabilityEmbeddings: 'Embeddings',
         capabilityGeminiImages: 'Gemini 生图（原生协议）',
         capabilityMiniMaxVideo: 'MiniMax 视频（原生协议）',
+        capabilityAnthropicMessages: 'Anthropic Messages（原生协议）',
         responsesStatusAutoSupported: '自动探测：Responses',
         responsesStatusAutoUnsupported: '自动探测：Chat Completions',
         responsesStatusAutoUnknown: '自动探测：未探测',

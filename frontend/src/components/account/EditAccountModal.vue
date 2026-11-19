@@ -4333,14 +4333,15 @@ const openAIEndpointCapabilityOptions = computed<{ value: OpenAIEndpointCapabili
   { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') },
   { value: 'seedance', label: 'Seedance (Ark)' },
   { value: 'gemini_images', label: t('admin.accounts.openai.capabilityGeminiImages') },
-  { value: 'minimax_video', label: t('admin.accounts.openai.capabilityMiniMaxVideo') }
+  { value: 'minimax_video', label: t('admin.accounts.openai.capabilityMiniMaxVideo') },
+  { value: 'anthropic_messages', label: t('admin.accounts.openai.capabilityAnthropicMessages') }
 ])
 const openAITextGenerationCapabilityEnabled = computed(() =>
   openAIEndpointCapabilities.value.includes('chat_completions')
 )
 
 const normalizeOpenAIEndpointCapabilities = (values: OpenAIEndpointCapability[]) => {
-  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings', 'seedance', 'gemini_images', 'minimax_video']
+  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings', 'seedance', 'gemini_images', 'minimax_video', 'anthropic_messages']
   const selected = allowed.filter((value) => values.includes(value))
   return selected.length > 0 ? selected : ['chat_completions', 'embeddings'] as OpenAIEndpointCapability[]
 }
@@ -4351,7 +4352,7 @@ const readOpenAIEndpointCapabilities = (credentials?: Record<string, unknown>): 
     return normalizeOpenAIEndpointCapabilities(
       raw.filter((value): value is OpenAIEndpointCapability =>
         value === 'chat_completions' || value === 'embeddings' || value === 'seedance' ||
-        value === 'gemini_images' || value === 'minimax_video'
+        value === 'gemini_images' || value === 'minimax_video' || value === 'anthropic_messages'
       )
     )
   }
