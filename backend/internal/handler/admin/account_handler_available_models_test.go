@@ -42,9 +42,13 @@ type syncUpstreamHTTPUpstream struct {
 	resp      *http.Response
 	responses []*http.Response
 	err       error
+	onRequest func(*http.Request, int64)
 }
 
 func (u *syncUpstreamHTTPUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	if u.onRequest != nil {
+		u.onRequest(req, accountID)
+	}
 	if u.err != nil {
 		return nil, u.err
 	}
@@ -490,6 +494,56 @@ func TestAccountHandlerSyncUpstreamModelsPreviewUsesProvidedModelMapping(t *test
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, []string{"glm-5.3"}, resp.Data.Models)
 	require.Equal(t, []string{"low", "high"}, resp.Data.Metadata["glm-5.3"].SupportedReasoningLevels)
+}
+
+func TestAccountHandlerSyncUpstreamModelsUsesDraftCredentialsWithoutSaving(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		url  string
+		key  string
+	}{
+		{"address and key", `{"base_url":"https://new.example/v1","api_key":" new-key "}`, "https://new.example/v1/models", "new-key"},
+		{"address with saved key", `{"base_url":"https://new.example/v1","api_key":" "}`, "https://new.example/v1/models", "old-key"},
+		{"key with saved address", `{"api_key":"new-key"}`, "https://old.example/v1/models", "new-key"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &availableModelsAdminService{
+				stubAdminService: newStubAdminService(),
+				account: service.Account{
+					ID: 48, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
+					Credentials: map[string]any{"api_key": "old-key", "base_url": "https://old.example/v1"},
+				},
+			}
+			requests := 0
+			upstream := &syncUpstreamHTTPUpstream{
+				resp: &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"data":[{"id":"gpt-image-1"}]}`)),
+				},
+				onRequest: func(req *http.Request, accountID int64) {
+					requests++
+					require.Equal(t, tc.url, req.URL.String())
+					require.Equal(t, "Bearer "+tc.key, req.Header.Get("Authorization"))
+					require.Zero(t, accountID)
+				},
+			}
+			router := setupSyncUpstreamModelsRouter(svc, upstream)
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/48/models/sync-upstream", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.Equal(t, 1, requests)
+			require.Contains(t, rec.Body.String(), "gpt-image-1")
+			require.NotContains(t, rec.Body.String(), tc.key)
+			require.Equal(t, "old-key", svc.account.Credentials["api_key"])
+			require.Equal(t, "https://old.example/v1", svc.account.Credentials["base_url"])
+			require.Equal(t, int64(48), svc.account.ID)
+		})
+	}
 }
 
 func TestAccountHandlerSyncUpstreamModels_UpstreamErrorDoesNotExposeBody(t *testing.T) {

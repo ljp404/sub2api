@@ -3074,6 +3074,38 @@ func (h *AccountHandler) SyncUpstreamModels(c *gin.Context) {
 		return
 	}
 
+	if c.Request.ContentLength != 0 {
+		var overrides struct {
+			BaseURL *string `json:"base_url"`
+			APIKey  string  `json:"api_key"`
+		}
+		if err := c.ShouldBindJSON(&overrides); err != nil {
+			response.BadRequest(c, "Invalid request: "+err.Error())
+			return
+		}
+		apiKey := strings.TrimSpace(overrides.APIKey)
+		if overrides.BaseURL != nil || apiKey != "" {
+			if account.Type != service.AccountTypeAPIKey {
+				response.BadRequest(c, "Connection overrides require an API key account")
+				return
+			}
+			// Preview draft credentials without changing the account or its catalog.
+			preview := *account
+			preview.ID = 0
+			preview.Credentials = make(map[string]any, len(account.Credentials))
+			for key, value := range account.Credentials {
+				preview.Credentials[key] = value
+			}
+			if overrides.BaseURL != nil {
+				preview.Credentials["base_url"] = strings.TrimSpace(*overrides.BaseURL)
+			}
+			if apiKey != "" {
+				preview.Credentials["api_key"] = apiKey
+			}
+			account = &preview
+		}
+	}
+
 	catalog, err := h.accountTestService.SyncUpstreamModelCatalog(c.Request.Context(), account)
 	if err != nil {
 		var syncErr *service.UpstreamModelSyncError

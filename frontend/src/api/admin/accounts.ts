@@ -639,8 +639,13 @@ export interface UpstreamModelMetadata {
  * @param id - Account ID
  * @returns List of model IDs returned by the upstream
  */
-export async function syncUpstreamModels(id: number): Promise<SyncUpstreamModelsResult> {
-  const { data } = await apiClient.post<SyncUpstreamModelsResult>(`/admin/accounts/${id}/models/sync-upstream`)
+export interface SyncUpstreamModelOverrides {
+  base_url?: string
+  api_key?: string
+}
+
+export async function syncUpstreamModels(id: number, overrides?: SyncUpstreamModelOverrides): Promise<SyncUpstreamModelsResult> {
+  const { data } = await apiClient.post<SyncUpstreamModelsResult>(`/admin/accounts/${id}/models/sync-upstream`, overrides)
   return data
 }
 

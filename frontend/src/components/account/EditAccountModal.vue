@@ -364,6 +364,7 @@
               :model-mappings="modelMappings"
               :platform="account?.platform || 'anthropic'"
               :account-id="account?.id"
+              :sync-credentials="editModelSyncCredentials"
               :show-sync-button="account.platform !== 'grok' || !account.id"
               @upstream-sync-finished="refreshGrokDiagnostics"
             />
@@ -3645,6 +3646,20 @@ interface TempUnschedRuleForm {
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
+const savedModelSyncBaseUrl = ref('')
+const editModelSyncCredentials = computed(() => {
+  const account = props.account
+  if (account?.type !== 'apikey') return undefined
+  const baseUrl = editBaseUrl.value.trim()
+  const apiKey = editApiKey.value.trim()
+  if (!apiKey && baseUrl === savedModelSyncBaseUrl.value) return undefined
+  return {
+    platform: account.platform,
+    type: account.type,
+    base_url: baseUrl,
+    api_key: apiKey
+  }
+})
 
 // ── 国产供应商（Kimi / Zhipu / DeepSeek）account_mode / api_protocol 编辑 ──
 // account_mode 决定额度/余额监控路径，api_protocol 决定转发端点与格式；
@@ -4930,6 +4945,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editBaseUrl.value = isCNApiKeyAccount.value && editApiProtocol.value === 'adaptive'
       ? editAdaptiveBaseUrls.value.chat_completions
       : (credentials.base_url as string) || platformDefaultUrl
+    savedModelSyncBaseUrl.value = editBaseUrl.value.trim()
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)

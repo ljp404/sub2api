@@ -192,7 +192,7 @@ const isSyncingUpstream = ref(false)
 let upstreamSyncVersion = 0
 
 watch(
-  () => props.accountId,
+  () => [props.accountId, props.syncCredentials],
   () => {
     upstreamSyncVersion += 1
     isSyncingUpstream.value = false
@@ -318,7 +318,12 @@ const syncUpstreamModels = async () => {
   try {
     let result
     if (accountId) {
-      result = await accountsAPI.syncUpstreamModels(accountId)
+      result = previewCredentials
+        ? await accountsAPI.syncUpstreamModels(accountId, {
+          base_url: previewCredentials.base_url,
+          api_key: previewCredentials.api_key
+        })
+        : await accountsAPI.syncUpstreamModels(accountId)
     } else if (previewCredentials) {
       result = await accountsAPI.syncUpstreamModelsPreview(previewCredentials as SyncUpstreamPreviewParams)
     } else {

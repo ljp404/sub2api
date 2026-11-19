@@ -390,6 +390,46 @@ describe('ModelWhitelistSelector', () => {
     expect(wrapper.emitted('upstream-synced')).toBeUndefined()
   })
 
+  it('syncs saved accounts with draft connection details', async () => {
+    syncUpstreamModels.mockResolvedValue({ models: ['gpt-image-new'] })
+    const wrapper = mountSelector({
+      accountId: 46,
+      syncCredentials: {
+        platform: 'openai',
+        type: 'apikey',
+        base_url: 'https://new.example/v1',
+        api_key: ''
+      }
+    })
+    await syncButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(syncUpstreamModels).toHaveBeenCalledWith(46, {
+      base_url: 'https://new.example/v1',
+      api_key: ''
+    })
+    expect(syncUpstreamModelsPreview).not.toHaveBeenCalled()
+    expect(wrapper.emitted('update:modelValue')).toEqual([[['gpt-image-new']]])
+    wrapper.unmount()
+  })
+
+  it('ignores an older catalog after draft connection details change', async () => {
+    const pending = deferred<any>()
+    syncUpstreamModels.mockReturnValue(pending.promise)
+    const wrapper = mountSelector({ accountId: 46 })
+    await syncButton(wrapper).trigger('click')
+    await wrapper.setProps({
+      syncCredentials: {
+        platform: 'openai', type: 'apikey', base_url: 'https://new.example', api_key: 'new-key'
+      }
+    })
+    pending.resolve({ models: ['old-upstream-model'] })
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(showSuccess).not.toHaveBeenCalled()
+    expect(wrapper.vm.isSyncingUpstream).toBe(false)
+    wrapper.unmount()
+  })
+
   it('keeps creation preview on the original upstream-synced event only', async () => {
     syncUpstreamModelsPreview.mockResolvedValue({
       models: ['grok-4.7'],
