@@ -653,6 +653,7 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
+import { resolveChannelPlatforms } from '@/components/admin/channel/channelPlatforms'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useKeyedDebouncedSearch } from '@/composables/useKeyedDebouncedSearch'
 
@@ -1140,6 +1141,7 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
   const featuresConfig: Record<string, unknown> = editingChannel.value?.features_config
     ? { ...editingChannel.value.features_config }
     : {}
+  featuresConfig.enabled_platforms = [...activePlatforms.value]
 
   for (const section of form.platforms) {
     if (!section.enabled) continue
@@ -1233,22 +1235,7 @@ function apiToForm(channel: Channel): PlatformSection[] {
     groupPlatformMap.set(g.id, g.platform)
   }
 
-  // Determine which platforms are active (from groups + pricing + mapping)
-  const activePlatforms = new Set<GroupPlatform>()
-  for (const gid of channel.group_ids || []) {
-    const p = groupPlatformMap.get(gid)
-    if (p === 'composite') {
-      compositePlatforms.value.forEach(platform => activePlatforms.add(platform))
-    } else if (p) {
-      activePlatforms.add(p)
-    }
-  }
-  for (const p of channel.model_pricing || []) {
-    if (p.platform) activePlatforms.add(p.platform as GroupPlatform)
-  }
-  for (const p of Object.keys(channel.model_mapping || {})) {
-    if (platformOrder.value.includes(p as GroupPlatform)) activePlatforms.add(p as GroupPlatform)
-  }
+  const activePlatforms = resolveChannelPlatforms(channel, allGroups.value, platformOrder.value)
 
   // Build sections in platform order
   const sections: PlatformSection[] = []
