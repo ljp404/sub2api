@@ -10,18 +10,6 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     `data:image/svg+xml,${encodeURIComponent(
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}"><path d="${path}"/></svg>`,
     )}`
-  const CONFIG = {
-    // Display-only labels; billing rules always come from the API.
-    modelTags: {
-      gpt_image_2: '图片',
-      'gpt-5.5': '文本',
-      'gpt-5.6': '文本',
-      'gpt-5.6-luna': '文本',
-      'gpt-5.6-terra': '文本',
-      'gpt-6-astra': '文本',
-      'gpt-6.1-sol': '文本',
-    },
-  }
   const ASSETS = {
     gemini: `data:image/svg+xml,${encodeURIComponent(geminiIcon)}`,
     google: `data:image/svg+xml,${encodeURIComponent(geminiIcon)}`,
@@ -94,8 +82,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     models: [],
     provider: '',
     billing: '',
-    tag: '',
-    group: '',
+    supplier: '',
     query: '',
     unit: 1000000,
     compare: true,
@@ -215,7 +202,6 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
   function selectedVariants(item) {
     return item.variants.filter(
       (v) =>
-        (!state.group || String(v.group.id) === state.group) &&
         (!state.billing || mode(v.model) === state.billing),
     )
   }
@@ -227,14 +213,15 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       .filter(
         (item) =>
           (!state.provider || item.provider === state.provider) &&
-          (!state.tag || CONFIG.modelTags[item.name] === state.tag) &&
+          (!state.supplier || item.supplier === state.supplier) &&
           item.name.toLowerCase().includes(state.query.toLowerCase().trim()) &&
           selectedVariants(item).some(
             (v) => !state.billing || mode(v.model) === state.billing,
           ),
       )
       .sort((a, b) => {
-        if (state.sort === 'name') return a.name.localeCompare(b.name)
+        if (state.sort === 'name')
+          return a.displayName.localeCompare(b.displayName) || a.supplier.localeCompare(b.supplier)
         if (state.sort.startsWith('price-')) {
           const av = representative(a),
             bv = representative(b)
@@ -278,22 +265,14 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       modes
         .map((m) => chip(m, billingNames[m] || m, state.billing, 'billing'))
         .join('')
-    const tags = [
-      ...new Set(
-        state.models.map((m) => CONFIG.modelTags[m.name]).filter(Boolean),
-      ),
-    ]
-    $('tags').innerHTML =
-      chip('', '全部标签', state.tag, 'tag') +
-      tags.map((t) => chip(t, t, state.tag, 'tag')).join('')
-    $('groups').innerHTML =
-      chip('', '全部分组', state.group, 'group', state.groups.length) +
-      state.groups
-        .map((g) =>
-          chip(String(g.id), g.name, state.group, 'group', g.models.length),
-        )
-        .join('')
-    $('group-count').textContent = `${state.groups.length} 个`
+    const suppliers = [...new Set(state.models.map((m) => m.supplier))]
+    $('suppliers').innerHTML =
+      chip('', '全部供应商', state.supplier, 'supplier', suppliers.length) +
+      suppliers.map((supplier) =>
+        chip(supplier, supplier, state.supplier, 'supplier',
+          state.models.filter((m) => m.supplier === supplier).length),
+      ).join('')
+    $('supplier-count').textContent = `${suppliers.length} 个`
   }
   function priceTable(
     variant,
@@ -373,23 +352,21 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       .join('')}</tbody></table></div>`
   }
   function card(item, index) {
-    const variants = selectedVariants(item),
-      v = representative(item),
+    const v = representative(item),
       selected = state.selected.has(item.key)
     const intervals =
       v.group.long_context_pricing_enabled === false
         ? []
         : v.model.pricing?.intervals || []
-    const groupLabel = state.group ? v.group.name : `${variants.length} 个分组`
     return `<article class="model-card ${selected ? 'selected' : ''}" data-model="${escapeHTML(item.name)}">
-    <div class="card-head">${brand(item.provider)}<div class="card-identity"><h2>${escapeHTML(item.name)}</h2><div class="badges"><span class="badge group-badge" title="${escapeHTML(variants.map((v) => v.group.name).join(' / '))}">${escapeHTML(groupLabel)}</span>${intervals.length > 1 ? '<span class="badge tier-badge">阶梯定价</span>' : '<span class="badge tier-badge">标准定价</span>'}</div></div><div class="card-actions"><button class="icon-button quiet" data-copy="${index}" title="复制模型名称" aria-label="复制 ${escapeHTML(item.name)}">${icon('copy')}</button><input class="model-check" type="checkbox" data-select="${index}" ${selected ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></div></div>
+    <div class="card-head">${brand(item.provider)}<div class="card-identity"><h2>${escapeHTML(item.displayName)}</h2><div class="badges"><span class="badge group-badge" title="供应商：${escapeHTML(item.supplier)}">${escapeHTML(item.supplier)}</span>${intervals.length > 1 ? '<span class="badge tier-badge">阶梯定价</span>' : '<span class="badge tier-badge">标准定价</span>'}</div></div><div class="card-actions"><button class="icon-button quiet" data-copy="${index}" title="复制模型名称" aria-label="复制 ${escapeHTML(item.name)}">${icon('copy')}</button><input class="model-check" type="checkbox" data-select="${index}" ${selected ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></div></div>
     ${priceTable(v)}
-    <div class="base-note">${state.group ? '当前分组' : `展示分组：${escapeHTML(v.group.name)}`} · 标准时段${intervals.length > 1 ? ' / 首档' : ''}</div>
-    <div class="card-footer"><div class="badges"><span class="tag">${escapeHTML(billingNames[mode(v.model)] || mode(v.model))}</span>${CONFIG.modelTags[item.name] ? `<span class="tag content">${escapeHTML(CONFIG.modelTags[item.name])}</span>` : ''}</div><button class="details-button" data-detail="${index}">详情 ${icon('chevron-right')}</button></div></article>`
+    <div class="base-note">展示分组：${escapeHTML(v.group.name)} · 标准时段${intervals.length > 1 ? ' / 首档' : ''}</div>
+    <div class="card-footer"><div class="badges"><span class="tag">${escapeHTML(billingNames[mode(v.model)] || mode(v.model))}</span></div><button class="details-button" data-detail="${index}">详情 ${icon('chevron-right')}</button></div></article>`
   }
   function listTable(items) {
     const unit = state.unit === 1000000 ? 'M' : 'K'
-    return `<div class="table-wrap"><table class="model-table"><thead><tr><th></th><th>模型</th><th>分组</th><th>输入 /${unit}</th><th>输出 /${unit}</th><th>缓存读取 /${unit}</th><th>按次 / 媒体</th><th>操作</th></tr></thead><tbody>${items
+    return `<div class="table-wrap"><table class="model-table"><thead><tr><th></th><th>模型</th><th>供应商</th><th>输入 /${unit}</th><th>输出 /${unit}</th><th>缓存读取 /${unit}</th><th>按次 / 媒体</th><th>操作</th></tr></thead><tbody>${items
       .map((item, i) => {
         const v = representative(item)
         const billing = mode(v.model)
@@ -402,7 +379,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
           ? `基础价 ${money(base == null ? null : Number(base) * multiplier(v, 'per_request_price'), 'per_request_price')}/张`
           : billing === 'token' ? '—'
             : `${money(price(v, 'per_request_price'), 'per_request_price')}/${billing === 'image' ? '张' : '次'}`
-        return `<tr><td><input type="checkbox" class="model-check" data-select="${i}" ${state.selected.has(item.key) ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></td><td class="name">${escapeHTML(item.name)}</td><td>${escapeHTML(v.group.name)}</td>${['input_price', 'output_price', 'cache_read_price'].map((key) => `<td class="money">${billing === 'token' ? money(price(v, key), key) : '—'}</td>`).join('')}<td class="money">${mediaPrice}</td><td><button class="details-button" data-detail="${i}">详情 ${icon('chevron-right')}</button></td></tr>`
+        return `<tr><td><input type="checkbox" class="model-check" data-select="${i}" ${state.selected.has(item.key) ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></td><td class="name">${escapeHTML(item.displayName)}</td><td>${escapeHTML(item.supplier)}</td>${['input_price', 'output_price', 'cache_read_price'].map((key) => `<td class="money">${billing === 'token' ? money(price(v, key), key) : '—'}</td>`).join('')}<td class="money">${mediaPrice}</td><td><button class="details-button" data-detail="${i}">详情 ${icon('chevron-right')}</button></td></tr>`
       })
       .join('')}</tbody></table></div>`
   }
@@ -422,9 +399,10 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     $('results').className = state.view === 'grid' ? 'grid' : ''
     $('results').setAttribute('aria-busy', String(state.loading))
     $('model-total').textContent = `共 ${state.models.length} 个模型`
-    $('page-title').textContent = state.provider
-      ? providerNames[state.provider] || state.provider
-      : '全部供应商'
+    $('page-title').textContent = [
+      state.provider && (providerNames[state.provider] || state.provider),
+      state.supplier,
+    ].filter(Boolean).join(' · ') || '全部模型'
     $('result-count').innerHTML = state.loading
       ? '正在获取模型…'
       : state.error
@@ -477,12 +455,18 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
           if (typeof model.name !== 'string') return
           const platform = model.platform || group.platform || 'unknown',
             key = JSON.stringify([platform, model.name])
+          const separator = model.name.lastIndexOf('/')
+          const hasSupplier = separator > 0 && model.name.slice(separator + 1).trim()
+          const displayName = hasSupplier ? model.name.slice(0, separator) : model.name
+          const supplier = hasSupplier ? model.name.slice(separator + 1).trim() : '未标注'
           if (!map.has(key))
             map.set(key, {
               key,
               name: model.name,
+              displayName,
+              supplier,
               platform,
-              provider: providerForModel(model.name, platform),
+              provider: providerForModel(displayName, platform),
               order: map.size,
               variants: [],
             })
@@ -494,11 +478,10 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       state.selected = new Set(
         [...state.selected].filter((key) => map.has(key)),
       )
-      if (!groups.some((g) => String(g.id) === state.group)) state.group = ''
+      if (!state.models.some((m) => m.supplier === state.supplier))
+        state.supplier = ''
       if (!state.models.some((m) => m.provider === state.provider))
         state.provider = ''
-      if (!state.models.some((m) => CONFIG.modelTags[m.name] === state.tag))
-        state.tag = ''
       if (
         !state.models.some((m) =>
           m.variants.some((v) => mode(v.model) === state.billing),
@@ -548,12 +531,12 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       m = v.model,
       g = v.group
     detailGroup = String(g.id)
-    $('detail-title').textContent = item.name
+    $('detail-title').textContent = item.displayName
     const displayCurrency = mode(m) === 'video' && m.pricing?.video_task_pricing?.currency === 'CNY'
       ? '人民币（CNY）'
       : 'USD'
     $('detail-subtitle').textContent =
-      `${providerNames[item.provider] || item.provider} · ${displayCurrency} · ${billingNames[mode(m)] || mode(m)}`
+      `${providerNames[item.provider] || item.provider} · 供应商：${item.supplier} · ${displayCurrency} · ${billingNames[mode(m)] || mode(m)}`
     const platformTiers = m.pricing?.intervals || [],
       officialTiers = m.official_pricing?.intervals || []
     const tiers =
@@ -658,8 +641,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     Object.assign(state, {
       provider: '',
       billing: '',
-      tag: '',
-      group: '',
+      supplier: '',
       query: '',
       sort: 'default',
     })
