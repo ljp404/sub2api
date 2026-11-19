@@ -239,45 +239,16 @@
           >
             {{ t('admin.channels.videoTaskPricing.enable') }}
           </button>
-          <!-- Default image price (per-request, same as per_request mode) -->
-          <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
-            {{ entry.billing_mode === 'video' ? t('admin.channels.form.defaultVideoPrice') : t('admin.channels.form.defaultImagePrice') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
-          </label>
-          <div class="mt-1 w-48">
-            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
-              type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
-          </div>
-
-          <template v-if="entry.billing_mode === 'image'">
+          <ImagePriceFields v-if="entry.billing_mode === 'image'" :entry="entry" @update="emit('update', $event)" />
+          <template v-else>
             <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
-              {{ t('admin.channels.form.imageEditPrice') }} $
-              <input :value="entry.image_edit_price" type="number" step="any" min="0" class="input mt-1 block w-48 text-sm"
-                :placeholder="t('admin.channels.form.imageEditFallback')"
-                @input="emitField('image_edit_price', ($event.target as HTMLInputElement).value)" />
+              {{ t('admin.channels.form.defaultVideoPrice') }}
+              <span class="ml-1 font-normal text-gray-400">$</span>
             </label>
-            <details class="mt-3 border-t border-gray-200 pt-3 dark:border-dark-600">
-              <summary class="cursor-pointer text-xs text-primary-600">{{ t('admin.channels.form.cnyConversion') }}</summary>
-              <div class="mt-2 grid gap-3 sm:grid-cols-3">
-                <label class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.channels.form.cnyPrice') }}
-                  <input v-model="cnyPrice" type="number" min="0" step="any" class="input mt-1 text-sm" />
-                </label>
-                <label class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.channels.videoTaskPricing.cnyPerUsd') }}
-                  <input v-model="cnyPerUsd" type="number" min="0.00000001" step="any" class="input mt-1 text-sm" />
-                </label>
-                <div class="flex flex-wrap items-end gap-2">
-                  <button type="button" class="btn btn-secondary text-xs" :disabled="convertedUSD === null" @click="applyConversion('per_request_price')">
-                    {{ t('admin.channels.form.applyGenerationPrice') }}
-                  </button>
-                  <button type="button" class="btn btn-secondary text-xs" :disabled="convertedUSD === null" @click="applyConversion('image_edit_price')">
-                    {{ t('admin.channels.form.applyEditPrice') }}
-                  </button>
-                </div>
-              </div>
-              <p v-if="convertedUSD !== null" class="mt-2 text-xs text-gray-500">USD ${{ convertedUSD }}</p>
-            </details>
+            <div class="mt-1 w-48">
+              <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
+                type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+            </div>
           </template>
 
           <!-- Image tiers -->
@@ -380,7 +351,7 @@ import { perTokenToMTok, getPlatformTagClass, isValidPositiveMultiplier, validat
 import { REASONING_EFFORT_LEVELS, type ReasoningEffortLevel } from '@/constants/channel'
 import type { BillingMode } from '@/api/admin/channels'
 import channelsAPI from '@/api/admin/channels'
-import { convertCNYToUSD } from './imagePriceConversion'
+import ImagePriceFields from './ImagePriceFields.vue'
 
 const { t } = useI18n()
 
@@ -404,14 +375,6 @@ const emit = defineEmits<{
 
 // Collapse state: entries with existing models default to collapsed
 const collapsed = ref(props.entry.models.length > 0)
-const cnyPrice = ref<number | string>('')
-const cnyPerUsd = ref<number | string>('')
-const convertedUSD = computed(() => convertCNYToUSD(cnyPrice.value, cnyPerUsd.value))
-
-function applyConversion(field: 'per_request_price' | 'image_edit_price') {
-  if (convertedUSD.value !== null) emitField(field, String(convertedUSD.value))
-}
-
 const billingModeOptions = computed(() => [
   { value: 'token', label: t('admin.channels.billingMode.token') },
   { value: 'per_request', label: t('admin.channels.billingMode.perRequest') },
