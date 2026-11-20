@@ -375,7 +375,6 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     return `<article class="model-card ${selected ? 'selected' : ''}" data-model="${escapeHTML(item.name)}">
     <div class="card-head">${brand(item.provider)}<div class="card-identity"><h2>${escapeHTML(item.displayName)}</h2><div class="badges"><span class="badge group-badge" title="渠道：${escapeHTML(item.supplier)}">${escapeHTML(item.supplier)}</span>${intervals.length > 1 ? '<span class="badge tier-badge">阶梯定价</span>' : '<span class="badge tier-badge">标准定价</span>'}</div></div><div class="card-actions"><button class="icon-button quiet" data-copy="${index}" title="复制模型名称" aria-label="复制 ${escapeHTML(item.name)}">${icon('copy')}</button><input class="model-check" type="checkbox" data-select="${index}" ${selected ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></div></div>
     ${priceTable(v)}
-    <div class="base-note">展示分组：${escapeHTML(v.group.name)} · ${intervals.length > 1 ? '首档价格' : '标准价格'}</div>
     <div class="card-footer"><div class="badges"><span class="tag">${escapeHTML(billingNames[mode(v.model)] || mode(v.model))}</span></div><button class="details-button" data-detail="${index}">详情 ${icon('chevron-right')}</button></div></article>`
   }
   function listTable(items) {

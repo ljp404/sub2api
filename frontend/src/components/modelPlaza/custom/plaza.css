@@ -354,7 +354,6 @@ input[type='checkbox'].model-check {
   border: 1px solid #e1e9ff;
   border-radius: 8px;
   background: #fbfcff;
-  min-height: 276px;
   padding: 12px 11px 11px;
   display: flex;
   flex-direction: column;
@@ -375,7 +374,7 @@ input[type='checkbox'].model-check {
   gap: 10px;
   align-items: flex-start;
   min-width: 0;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .brand {
   height: 44px;
@@ -518,7 +517,7 @@ input[type='checkbox'].model-check {
   justify-content: space-between;
   gap: 6px;
   margin-top: auto;
-  padding-top: 20px;
+  padding-top: 10px;
 }
 .tag {
   background: #eee8fa;
@@ -546,11 +545,6 @@ input[type='checkbox'].model-check {
 .details-button img {
   width: 13px;
   height: 13px;
-}
-.base-note {
-  font-size: 10px;
-  color: #a0a6b2;
-  margin-top: 8px;
 }
 .state {
   border: 1px dashed #dce3f2;
@@ -913,7 +907,6 @@ dialog::backdrop {
     gap: 12px;
   }
   .model-card {
-    min-height: 267px;
     padding: 14px;
   }
   .brand {
@@ -1060,11 +1053,6 @@ body {
 .tag.content {
   color: #7e3100;
   background: rgba(252, 136, 0, 0.15);
-}
-.base-note {
-  font-size: 11px;
-  color: #6b7280;
-  line-height: 18px;
 }
 .details-button {
   font-size: 14px;
