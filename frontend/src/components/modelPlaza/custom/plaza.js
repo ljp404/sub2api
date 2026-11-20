@@ -345,7 +345,9 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         ? rows.filter(
             ([key]) =>
               key !== 'per_request_price' &&
-              (pricing?.[key] != null || reference?.[key] != null),
+              (pricing?.[key] != null || reference?.[key] != null) &&
+              (!['image_input_price', 'image_output_price'].includes(key) ||
+                Number(pricing?.[key]) > 0 || Number(reference?.[key]) > 0),
           )
         : rows.slice(0, 3)
       : rows.filter(([key]) => key === 'per_request_price')
@@ -373,7 +375,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
     return `<article class="model-card ${selected ? 'selected' : ''}" data-model="${escapeHTML(item.name)}">
     <div class="card-head">${brand(item.provider)}<div class="card-identity"><h2>${escapeHTML(item.displayName)}</h2><div class="badges"><span class="badge group-badge" title="渠道：${escapeHTML(item.supplier)}">${escapeHTML(item.supplier)}</span>${intervals.length > 1 ? '<span class="badge tier-badge">阶梯定价</span>' : '<span class="badge tier-badge">标准定价</span>'}</div></div><div class="card-actions"><button class="icon-button quiet" data-copy="${index}" title="复制模型名称" aria-label="复制 ${escapeHTML(item.name)}">${icon('copy')}</button><input class="model-check" type="checkbox" data-select="${index}" ${selected ? 'checked' : ''} aria-label="选择 ${escapeHTML(item.name)}"></div></div>
     ${priceTable(v)}
-    <div class="base-note">展示分组：${escapeHTML(v.group.name)} · 标准时段${intervals.length > 1 ? ' / 首档' : ''}</div>
+    <div class="base-note">展示分组：${escapeHTML(v.group.name)} · ${intervals.length > 1 ? '首档价格' : '标准价格'}</div>
     <div class="card-footer"><div class="badges"><span class="tag">${escapeHTML(billingNames[mode(v.model)] || mode(v.model))}</span></div><button class="details-button" data-detail="${index}">详情 ${icon('chevron-right')}</button></div></article>`
   }
   function listTable(items) {
@@ -532,17 +534,13 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         : `≤ ${tier.max_tokens.toLocaleString()} tokens`)
     )
   }
-  let detailItem = null,
-    detailGroup = ''
+  let detailItem = null
   function renderDetails() {
     if (!detailItem) return
     const item = detailItem,
-      v =
-        item.variants.find((v) => String(v.group.id) === detailGroup) ||
-        item.variants[0],
+      v = representative(item),
       m = v.model,
       g = v.group
-    detailGroup = String(g.id)
     $('detail-title').textContent = item.displayName
     const displayCurrency = mode(m) === 'video' && m.pricing?.video_task_pricing?.currency === 'CNY'
       ? '人民币（CNY）'
@@ -555,10 +553,12 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       g.long_context_pricing_enabled === false
         ? []
         : [...platformTiers].sort((a, b) => a.min_tokens - b.min_tokens)
-    let html = `<div class="detail-select"><label>可用分组<select id="detail-group" aria-label="详情分组">${item.variants.map((v) => `<option value="${escapeHTML(v.group.id)}" ${v.group.id === g.id ? 'selected' : ''}>${escapeHTML(v.group.name)}</option>`).join('')}</select></label><span class="badge group-badge">分组倍率 ×${escapeHTML(baseMultiplier(g))}</span></div>`
+    let html = `<div class="detail-select"><span class="badge group-badge">分组倍率 ×${escapeHTML(baseMultiplier(g))}</span></div>`
     if (g.description)
       html += `<p class="detail-note">${escapeHTML(g.description)}</p>`
-    html += `<h3 style="font-size:13px;margin-bottom:10px">标准时段价格${tiers.length > 1 ? ' · 首档' : ''}</h3>${priceTable(v, basePricing(m), m.official_pricing, true)}`
+    html += `<h3 style="font-size:13px;margin-bottom:10px">${tiers.length > 1 ? '阶梯价格' : '标准价格'}</h3>`
+    if (tiers.length <= 1)
+      html += priceTable(v, basePricing(m), m.official_pricing, true)
     const efforts = Object.entries(
       m.pricing?.reasoning_effort_multipliers || {},
     ).filter(
@@ -571,7 +571,7 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
       html +=
         '<p class="detail-note">当前按次或媒体计费，官方目录的每 token 参考价与此单位不同，不作折扣比较。</p>'
     if (tiers.length > 1) {
-      html += `<p class="detail-note">${m.long_context_basis === 'marginal' ? '按区间分段计费，只有超出阈值的部分按对应档位单价计价。' : '整单按请求所在档位的单价计价。'} 以下价格已计入所选分组倍率。</p>`
+      html += `<p class="detail-note">${m.long_context_basis === 'marginal' ? '按区间分段计费，只有超出阈值的部分按对应档位单价计价。' : '整单按请求所在档位的单价计价。'} 以下价格已计入当前分组倍率。</p>`
       html += tiers
         .map((tier) => {
           const segments = referencePricingSegments(tier, m.official_pricing)
@@ -622,7 +622,6 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
   }
   function openDetails(index) {
     detailItem = state.visible[index]
-    detailGroup = String(representative(detailItem).group.id)
     renderDetails()
     $('details').showModal()
   }
@@ -700,10 +699,6 @@ export function mountPlaza(root, fetchPlaza, authenticated) {
         else state.selected.delete(item.key)
         el.closest('.model-card')?.classList.toggle('selected', el.checked)
         updateSelection()
-      }
-      if (el.id === 'detail-group') {
-        detailGroup = el.value
-        renderDetails()
       }
     },
     { signal: lifecycle.signal },
